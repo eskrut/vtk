@@ -274,7 +274,7 @@ void vtkWin32VideoSource::Initialize()
     }
 
   // set the user data to 'this'
-  vtkSetWindowLong(this->Internal->ParentWnd,vtkGWL_USERDATA,(vtkLONG)this);
+  vtkSetWindowLong(this->Internal->ParentWnd,vtkGWL_USERDATA,(intptr_t)this);
 
   // Create the capture window
   this->Internal->CapWnd = capCreateCaptureWindow("Capture",
@@ -339,7 +339,7 @@ void vtkWin32VideoSource::Initialize()
     }
 
   // set user data for callbacks
-  if (!capSetUserData(this->Internal->CapWnd,(long)this))
+  if (!capSetUserData(this->Internal->CapWnd,(intptr_t)this))
     {
     vtkErrorMacro(<< "Initialize: couldn't set user data for callback"\
                     << " (" << GetLastError() << ")");
