@@ -38,8 +38,8 @@
 // group of sources have in common, and to copy tuples from a source into
 // the destination, for only those attributes that are held by all.
 
-#ifndef __vtkDataSetAttributes_h
-#define __vtkDataSetAttributes_h
+#ifndef vtkDataSetAttributes_h
+#define vtkDataSetAttributes_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkFieldData.h"
@@ -102,6 +102,33 @@ public:
     NOLIMIT
   };
 //ETX
+
+  // ----------- ghost points and ghost cells -------------------------------------------
+  //The following bit fields are consistent with VisIt ghost zones specification
+  //For details, see http://www.visitusers.org/index.php?title=Representing_ghost_data
+
+  enum CellGhostTypes
+  {
+    DUPLICATECELL           = 1,  //the cell is present on multiple processors
+    HIGHCONNECTIVITYCELL    = 2,  //the cell has more neighbors than in a regular mesh
+    LOWCONNECTIVITYCELL     = 4,  //the cell has less neighbors than in a regular mesh
+    REFINEDCELL             = 8,  //other cells are present that refines it.
+    EXTERIORCELL            = 16, //the cell is on the exterior of the data set
+    HIDDENCELL              = 32  //the cell is needed to maintain connectivity, but the data values should be ignored.
+  };
+
+  enum PointGhostTypes
+  {
+    DUPLICATEPOINT          =1,   //the cell is present on multiple processors
+    HIDDENPOINT             =2    //the point is needed to maintain connectivity, but the data values should be ignored.
+  };
+
+  //A vtkDataArray with this name must be of type vtkUnsignedCharArray.
+  //Each value must be assigned according to the bit fields described in
+  //PointGhostTypes or CellGhostType
+  static const char* GhostArrayName()  { return "vtkGhostType";}
+
+  //-----------------------------------------------------------------------------------
 
   // Description:
   // Set/Get the scalar data.
@@ -478,14 +505,23 @@ public:
                 vtkIdList *fromIds, vtkIdList *toIds);
 
   // Description:
-  // Copy a tuple of data from one data array to another. This method
-  // assumes that the fromData and toData objects are of the
+  // Copy n consecutive attributes starting at srcStart from fromPd to this
+  // container, starting at the dstStart location.
+  // Note that memory allocation is performed as necessary to hold the data.
+  void CopyData(vtkDataSetAttributes *fromPd, vtkIdType dstStart, vtkIdType n,
+                vtkIdType srcStart);
+
+  // Description:
+  // Copy a tuple (or set of tuples) of data from one data array to another.
+  // This method assumes that the fromData and toData objects are of the
   // same type, and have the same number of components. This is true if you
   // invoke CopyAllocate() or InterpolateAllocate().
   void CopyTuple(vtkAbstractArray *fromData, vtkAbstractArray *toData,
                  vtkIdType fromId, vtkIdType toId);
   void CopyTuples(vtkAbstractArray *fromData, vtkAbstractArray *toData,
                   vtkIdList *fromIds, vtkIdList *toIds);
+  void CopyTuples(vtkAbstractArray *fromData, vtkAbstractArray *toData,
+                  vtkIdType dstStart, vtkIdType n, vtkIdType srcStart);
 
 
   // -- interpolate operations ----------------------------------------------

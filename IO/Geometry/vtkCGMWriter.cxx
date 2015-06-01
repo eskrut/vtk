@@ -973,7 +973,6 @@ static int cgmcomheadlong(unsigned char *es, int elemclass, int id, int len)
   /* now set the second two bytes */
   cgmAppShort(es, static_cast<short int>(len));
   *es = *es & 0177; /* make bit 15 = 0 */
-  es += 2;
 
   return 1;
 }
@@ -1207,7 +1206,7 @@ static int cgmCgmPic(cgmImagePtr im, int sticky)
   headerp = static_cast<unsigned char *>(calloc(1024, SIZEOF(unsigned char )));
   if (!tb || !headerp)
     {
-    free(fb);
+    free(tb);
     free(headerp);
     return 0; /* memory allocation failed */
     }

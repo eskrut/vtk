@@ -196,7 +196,7 @@ void vtkImageNonMaximumSuppressionExecute(vtkImageNonMaximumSuppression *self,
           d = vector[2] = static_cast<double>(in2Ptr[2]) * ratio[2];
           normalizeFactor += (d * d);
           }
-        if (normalizeFactor)
+        if (normalizeFactor != 0.0)
           {
           normalizeFactor = 1.0 / sqrt(normalizeFactor);
           }
@@ -301,7 +301,7 @@ void vtkImageNonMaximumSuppression::ThreadedRequestData(
 
   if (id == 0)
     {
-    if (outData[0] && outData[0]->GetPointData()->GetScalars())
+    if (outData[0]->GetPointData()->GetScalars())
       {
       outData[0]->GetPointData()->GetScalars()->SetName("SuppressedMaximum");
       }

@@ -25,13 +25,13 @@
 //  - Do bunch of merging with outLocator->Merge(inLocator[i], ...) (this can be done in parallel as long as no two bins are done at the same time)
 //  - Fix the size of points with outLocator->FixSizeOfPointArray()
 
-#ifndef __vtkSMPMergePoints_h__
-#define __vtkSMPMergePoints_h__
+#ifndef vtkSMPMergePoints_h__
+#define vtkSMPMergePoints_h__
 
 #include "vtkFiltersSMPModule.h" // For export macro
 #include "vtkMergePoints.h"
 #include "vtkIdList.h" // For inline functions
-#include "vtkAtomicInt.h" // For the atomic integer used in Merge()
+#include "vtkAtomicTypes.h" // For the atomic integer used in Merge()
 
 class vtkPointData;
 
@@ -99,11 +99,11 @@ protected:
   vtkSMPMergePoints();
   ~vtkSMPMergePoints();
 
-  vtkAtomicInt<vtkIdType> AtomicInsertionId;
+  vtkAtomicIdType AtomicInsertionId;
 
 private:
   vtkSMPMergePoints(const vtkSMPMergePoints&); // Not implemented
   void operator=(const vtkSMPMergePoints&); // Not implemented
 };
 
-#endif // __vtkSMPMergePoints_h__
+#endif // vtkSMPMergePoints_h__

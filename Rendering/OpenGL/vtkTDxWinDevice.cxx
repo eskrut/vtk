@@ -205,7 +205,7 @@ void vtkTDxWinDevice::Initialize()
   HRESULT hr=0;
   CComPtr<IUnknown> device;
 
-  bool alreadyConnected=vtkWindowHandleToDeviceObjectConnection.size()!=0;
+  bool alreadyConnected=!vtkWindowHandleToDeviceObjectConnection.empty();
 
   if(alreadyConnected)
     {
@@ -305,8 +305,10 @@ void vtkTDxWinDevice::StopListening()
   assert("pre: initialized" && this->GetInitialized());
   assert("pre: is_listening" && this->GetIsListening());
 
+  const UINT_PTR uIDEvent = this->WindowHandle != 0 ?
+    VTK_IDT_TDX_TIMER : this->Private->TimerId;
   // Kill the timer used to poll the sensor and keyboard
-  ::KillTimer(this->WindowHandle,VTK_IDT_TDX_TIMER);
+  ::KillTimer(this->WindowHandle, uIDEvent);
   this->Private->TimerId=0;
   this->IsListening=false;
 
@@ -354,7 +356,7 @@ void vtkTDxWinDevice::Close()
     vtkWindowHandleToDeviceObjectConnection.erase(it);
     }
 
-  if(vtkWindowHandleToDeviceObjectConnection.size()==0)
+  if(vtkWindowHandleToDeviceObjectConnection.empty())
     {
       // Release the sensor and keyboard interfaces
       vtkTDxWinDevicePrivate *o=this->Private;
@@ -507,11 +509,9 @@ VOID CALLBACK vtkTDxWinDeviceTimerProc(HWND hwnd,
 {
   std::map<HWND,vtkTDxWinDevice *,vtkLessThanWindowHandle>::iterator it=vtkWindowHandleToDeviceObject.find(hwnd);
 
-  //  cout << "proc for hwnd=" << hwnd << endl;
-
   if(it==vtkWindowHandleToDeviceObject.end())
     {
-    vtkGenericWarningMacro(<< "No matching vtkTDxWinDevice object for window hwnd=" << hwnd);
+    //vtkGenericWarningMacro(<< "No matching vtkTDxWinDevice object for window hwnd=" << hwnd);
     return;
     }
   vtkTDxWinDevice *device=(*it).second;

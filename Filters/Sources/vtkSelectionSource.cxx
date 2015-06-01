@@ -75,10 +75,7 @@ vtkSelectionSource::vtkSelectionSource()
 vtkSelectionSource::~vtkSelectionSource()
 {
   delete this->Internal;
-  if (this->ArrayName)
-    {
-    delete[] this->ArrayName;
-    }
+  delete[] this->ArrayName;
   delete[] this->QueryString;
 }
 
@@ -349,7 +346,7 @@ int vtkSelectionSource::RequestData(
         vtkSelectionSourceInternals::StringIDSetType& selSet =
           this->Internal->StringIDs[idx];
 
-        if (selSet.size() > 0)
+        if (!selSet.empty())
           {
           // Create the selection list
           selectionList->SetNumberOfTuples(selSet.size());
@@ -411,7 +408,7 @@ int vtkSelectionSource::RequestData(
         vtkSelectionSourceInternals::IDSetType& selSet =
           this->Internal->IDs[idx];
 
-        if (selSet.size() > 0)
+        if (!selSet.empty())
           {
           // Create the selection list
           selectionList->SetNumberOfTuples(selSet.size());

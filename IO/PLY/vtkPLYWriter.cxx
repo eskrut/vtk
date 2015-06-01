@@ -23,7 +23,7 @@
 #include "vtkPolyData.h"
 #include "vtkScalarsToColors.h"
 
-#include <stddef.h>
+#include <cstddef>
 
 vtkStandardNewMacro(vtkPLYWriter);
 
@@ -47,11 +47,8 @@ vtkPLYWriter::~vtkPLYWriter()
     {
     this->LookupTable->Delete();
     }
-  if ( this->ArrayName )
-    {
-    delete [] this->ArrayName;
-    }
-  delete[] this->FileName;
+  delete [] this->ArrayName;
+  delete [] this->FileName;
 }
 
 typedef struct _plyVertex {

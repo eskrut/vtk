@@ -22,6 +22,8 @@
 #include "vtkPixelBufferObject.h"
 #include "vtkOpenGLError.h"
 
+#include "vtkglBufferObject.h"
+
 #include <cassert>
 #include <vector>
 using std::vector;
@@ -57,7 +59,7 @@ void vtkFrameBufferObject::CreateFBO()
 {
   this->FBOIndex=0;
   GLuint temp;
-  glGenFramebuffersEXT(1,&temp);
+  glGenFramebuffers(1,&temp);
   vtkOpenGLCheckErrorMacro("failed at glGenFramebuffers");
   this->FBOIndex=temp;
 }
@@ -73,7 +75,7 @@ void vtkFrameBufferObject::DestroyFBO()
   if (this->Context && (this->FBOIndex!=0))
     {
     GLuint fbo=static_cast<GLuint>(this->FBOIndex);
-    glDeleteFramebuffersEXT(1,&fbo);
+    glDeleteFramebuffers(1,&fbo);
     vtkOpenGLCheckErrorMacro("failed at glDeleteFramebuffers");
     this->FBOIndex=0;
     }
@@ -82,17 +84,37 @@ void vtkFrameBufferObject::DestroyFBO()
 //----------------------------------------------------------------------------
 bool vtkFrameBufferObject::IsSupported(vtkOpenGLRenderWindow *)
 {
-    bool fbo = (glewIsSupported("GL_EXT_framebuffer_object") != 0);
-    bool fboBlit = (glewIsSupported("GL_EXT_framebuffer_blit") != 0);
+  if (vtkOpenGLRenderWindow::GetContextSupportsOpenGL32())
+    {
+    return true;
+    }
 
-    return fbo && fboBlit;
+#if GL_ES_VERSION_3_0 == 1
+  bool fbo = true;
+  bool fboBlit = true;
+#else
+  bool fbo = (glewIsSupported("GL_EXT_framebuffer_object") != 0);
+  bool fboBlit = (glewIsSupported("GL_EXT_framebuffer_blit") != 0);
+#endif
+
+  return fbo && fboBlit;
 }
 
 //----------------------------------------------------------------------------
-bool vtkFrameBufferObject::LoadRequiredExtensions(vtkOpenGLRenderWindow *vtkNotUsed(win))
+bool vtkFrameBufferObject::LoadRequiredExtensions(vtkOpenGLRenderWindow *)
 {
+   if (vtkOpenGLRenderWindow::GetContextSupportsOpenGL32())
+    {
+    return true;
+    }
+
+#if GL_ES_VERSION_3_0 == 1
+  bool fbo = true;
+  bool fboBlit = true;
+#else
   bool fbo = (glewIsSupported("GL_EXT_framebuffer_object") != 0);
   bool fboBlit = (glewIsSupported("GL_EXT_framebuffer_blit") != 0);
+#endif
 
   return fbo && fboBlit;
 }
@@ -158,12 +180,12 @@ bool vtkFrameBufferObject::StartNonOrtho(int width,
     this->CreateDepthBuffer(
           width,
           height,
-          GL_DRAW_FRAMEBUFFER_EXT);
+          GL_DRAW_FRAMEBUFFER);
 
     this->CreateColorBuffers(
           width,
           height,
-          GL_DRAW_FRAMEBUFFER_EXT,
+          GL_DRAW_FRAMEBUFFER,
           shaderSupportsTextureInt);
     }
 
@@ -172,11 +194,11 @@ bool vtkFrameBufferObject::StartNonOrtho(int width,
 
   this->ActivateBuffers();
 
-  GLenum status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
-  if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
+  GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+  if (status != GL_FRAMEBUFFER_COMPLETE)
     {
     vtkErrorMacro("Frame buffer object was not initialized correctly.");
-    this->CheckFrameBufferStatus(GL_FRAMEBUFFER_EXT);
+    this->CheckFrameBufferStatus(GL_FRAMEBUFFER);
     this->DisplayFrameBufferAttachments();
     this->DisplayDrawBuffers();
     this->DisplayReadBuffer();
@@ -196,21 +218,10 @@ bool vtkFrameBufferObject::Start(int width,
     return false;
     }
 
-  glDisable(GL_ALPHA_TEST);
   glDisable(GL_BLEND);
   glDisable(GL_DEPTH_TEST);
-  glDisable(GL_LIGHTING);
   glDisable(GL_SCISSOR_TEST);
 
-  // Viewport transformation for 1:1 'pixel=texel=data' mapping.
-  // Note this note enough for 1:1 mapping, because depending on the
-  // primitive displayed (point,line,polygon), the rasterization rules
-  // are different.
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
-  glOrtho(0.0, width, 0.0, height, -1, 1);
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
   glViewport(0, 0, width, height);
 
   return true;
@@ -238,7 +249,7 @@ void vtkFrameBufferObject::ActivateBuffers()
   for(unsigned int cc=0;
       cc < this->ActiveBuffers.size() && count < maxbuffers; cc++)
     {
-    buffers[cc] = GL_COLOR_ATTACHMENT0_EXT + this->ActiveBuffers[cc];
+    buffers[cc] = GL_COLOR_ATTACHMENT0 + this->ActiveBuffers[cc];
     count++;
     }
 
@@ -255,9 +266,9 @@ void vtkFrameBufferObject::Bind()
     {
     this->Context->MakeCurrent();
     GLint framebufferBinding;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT,&framebufferBinding);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING,&framebufferBinding);
     this->PreviousFBOIndex=framebufferBinding;
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, this->FBOIndex);
+    glBindFramebuffer(GL_FRAMEBUFFER, this->FBOIndex);
     }
 }
 
@@ -266,7 +277,7 @@ void vtkFrameBufferObject::UnBind()
 {
   if (this->FBOIndex!=0 && this->PreviousFBOIndex!=-1)
     {
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT,this->PreviousFBOIndex);
+    glBindFramebuffer(GL_FRAMEBUFFER,this->PreviousFBOIndex);
     this->PreviousFBOIndex=-1;
     }
 }
@@ -282,9 +293,9 @@ void vtkFrameBufferObject::CreateDepthBuffer(
   if (this->UserDepthBuffer)
     {
     // Attach the depth buffer to the FBO.
-    glFramebufferTexture2DEXT(
+    glFramebufferTexture2D(
           (GLenum)mode,
-          GL_DEPTH_ATTACHMENT_EXT,
+          GL_DEPTH_ATTACHMENT,
           GL_TEXTURE_2D,
           this->UserDepthBuffer->GetHandle(),
           0);
@@ -296,16 +307,16 @@ void vtkFrameBufferObject::CreateDepthBuffer(
     {
     // Create render buffers which are independent of render targets.
     GLuint temp;
-    glGenRenderbuffersEXT(1, &temp);
+    glGenRenderbuffers(1, &temp);
     vtkOpenGLCheckErrorMacro("failed at glGenRenderbuffers");
 
     this->DepthBuffer = temp;
-    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, this->DepthBuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, this->DepthBuffer);
     vtkOpenGLCheckErrorMacro("failed at glBindRenderbuffer");
 
     // Assign storage to this depth buffer.
-    glRenderbufferStorageEXT(
-          GL_RENDERBUFFER_EXT,
+    glRenderbufferStorage(
+          GL_RENDERBUFFER,
           GL_DEPTH_COMPONENT24,
           width,
           height);
@@ -313,10 +324,10 @@ void vtkFrameBufferObject::CreateDepthBuffer(
     vtkOpenGLCheckErrorMacro("failed at glRenderbufferStorage");
 
     // Attach the depth buffer to the FBO.
-    glFramebufferRenderbufferEXT(
+    glFramebufferRenderbuffer(
           (GLenum)mode,
-          GL_DEPTH_ATTACHMENT_EXT,
-          GL_RENDERBUFFER_EXT,
+          GL_DEPTH_ATTACHMENT,
+          GL_RENDERBUFFER,
           this->DepthBuffer);
 
     vtkOpenGLCheckErrorMacro("failed at glFramebufferRenderbuffer");
@@ -334,7 +345,7 @@ void vtkFrameBufferObject::DestroyDepthBuffer()
   if(this->Context && this->DepthBuffer)
     {
     GLuint temp = static_cast<GLuint>(this->DepthBuffer);
-    glDeleteRenderbuffersEXT(1, &temp);
+    glDeleteRenderbuffers(1, &temp);
     vtkOpenGLCheckErrorMacro("failed at glDeleteRenderbuffers");
     this->DepthBuffer = 0;
     }
@@ -400,9 +411,9 @@ void vtkFrameBufferObject::CreateColorBuffers(
     // attach the buffer
     if (colorBuffer->GetNumberOfDimensions() == 2)
       {
-      glFramebufferTexture2DEXT(
+      glFramebufferTexture2D(
             (GLenum)mode,
-            GL_COLOR_ATTACHMENT0_EXT+cc,
+            GL_COLOR_ATTACHMENT0 + cc,
             GL_TEXTURE_2D,
             colorBuffer->GetHandle(),
             0);
@@ -413,14 +424,17 @@ void vtkFrameBufferObject::CreateColorBuffers(
     if (colorBuffer->GetNumberOfDimensions() == 3)
       {
       assert(this->UserZSlices[cc]<colorBuffer->GetDepth());
-      glFramebufferTexture3DEXT(
+#if GL_ES_VERSION_3_0 != 1
+      glFramebufferTexture3D(
             (GLenum)mode,
-            GL_COLOR_ATTACHMENT0_EXT+cc,
+            GL_COLOR_ATTACHMENT0 + cc,
             GL_TEXTURE_3D,
             colorBuffer->GetHandle(),
             0,
             this->UserZSlices[cc]);
-
+#else
+     vtkErrorMacro("Attempt to use 3D frame buffer texture in OpenGL ES 3");
+#endif
       vtkOpenGLCheckErrorMacro("failed at glFramebufferTexture3D");
       }
     this->ColorBuffers[cc] = colorBuffer;
@@ -430,10 +444,10 @@ void vtkFrameBufferObject::CreateColorBuffers(
   unsigned int attachments=this->GetMaximumNumberOfRenderTargets();
   while(cc<attachments)
     {
-    glFramebufferRenderbufferEXT(
+    glFramebufferRenderbuffer(
           (GLenum)mode,
-          GL_COLOR_ATTACHMENT0_EXT+cc,
-          GL_RENDERBUFFER_EXT,
+          GL_COLOR_ATTACHMENT0 + cc,
+          GL_RENDERBUFFER,
           0);
 
     vtkOpenGLCheckErrorMacro("failed at glFramebufferRenderbuffer");
@@ -465,7 +479,7 @@ unsigned int vtkFrameBufferObject::GetMaximumNumberOfRenderTargets()
   if (this->Context)
     {
     GLint maxColorAttachments;
-    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS_EXT,&maxColorAttachments);
+    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS,&maxColorAttachments);
     result = static_cast<unsigned int>(maxColorAttachments);
     }
   return result;
@@ -547,8 +561,8 @@ void vtkFrameBufferObject::RemoveAllColorBuffers()
 void vtkFrameBufferObject::DisplayFrameBufferAttachments()
 {
   GLint framebufferBinding;
-  glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT,&framebufferBinding);
-  vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_BINDING_EXT");
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING,&framebufferBinding);
+  vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_BINDING");
   if(framebufferBinding==0)
     {
     cout<<"Current framebuffer is bind to the system one"<<endl;
@@ -559,19 +573,19 @@ void vtkFrameBufferObject::DisplayFrameBufferAttachments()
         <<framebufferBinding<<endl;
 
     GLint maxColorAttachments;
-    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS_EXT,&maxColorAttachments);
-    vtkOpenGLCheckErrorMacro("after getting MAX_COLOR_ATTACHMENTS_EXT");
+    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS,&maxColorAttachments);
+    vtkOpenGLCheckErrorMacro("after getting MAX_COLOR_ATTACHMENTS");
     int i=0;
     while(i<maxColorAttachments)
       {
       cout<<"color attachement "<<i<<":"<<endl;
-      this->DisplayFrameBufferAttachment(GL_COLOR_ATTACHMENT0_EXT+i);
+      this->DisplayFrameBufferAttachment(GL_COLOR_ATTACHMENT0+i);
       ++i;
       }
     cout<<"depth attachement :"<<endl;
-    this->DisplayFrameBufferAttachment(GL_DEPTH_ATTACHMENT_EXT);
+    this->DisplayFrameBufferAttachment(GL_DEPTH_ATTACHMENT);
     cout<<"stencil attachement :"<<endl;
-    this->DisplayFrameBufferAttachment(GL_STENCIL_ATTACHMENT_EXT);
+    this->DisplayFrameBufferAttachment(GL_STENCIL_ATTACHMENT);
     }
 }
 
@@ -584,11 +598,11 @@ void vtkFrameBufferObject::DisplayFrameBufferAttachment(
   GLenum attachment=static_cast<GLenum>(uattachment);
 
   GLint params;
-  glGetFramebufferAttachmentParameterivEXT(
-    GL_FRAMEBUFFER_EXT,attachment,
-    GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_EXT,&params);
+  glGetFramebufferAttachmentParameteriv(
+    GL_FRAMEBUFFER,attachment,
+    GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,&params);
 
-  vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_EXT");
+  vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE");
 
   switch(params)
     {
@@ -596,20 +610,20 @@ void vtkFrameBufferObject::DisplayFrameBufferAttachment(
       cout<<" this attachment is empty"<<endl;
       break;
     case GL_TEXTURE:
-      glGetFramebufferAttachmentParameterivEXT(
-        GL_FRAMEBUFFER_EXT,attachment,
-        GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT,&params);
-       vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT");
+      glGetFramebufferAttachmentParameteriv(
+        GL_FRAMEBUFFER,attachment,
+        GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,&params);
+       vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_OBJECT_NAME");
       cout<<" this attachment is a texture with name: "<<params<<endl;
-      glGetFramebufferAttachmentParameterivEXT(
-        GL_FRAMEBUFFER_EXT,attachment,
-        GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL_EXT,&params);
-      vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL_EXT");
+      glGetFramebufferAttachmentParameteriv(
+        GL_FRAMEBUFFER,attachment,
+        GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL,&params);
+      vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL");
       cout<<" its mipmap level is: "<<params<<endl;
-      glGetFramebufferAttachmentParameterivEXT(
-        GL_FRAMEBUFFER_EXT,attachment,
-        GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE_EXT,&params);
-      vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE_EXT");
+      glGetFramebufferAttachmentParameteriv(
+        GL_FRAMEBUFFER,attachment,
+        GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE,&params);
+      vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE");
       if(params==0)
         {
         cout<<" this is not a cube map texture."<<endl;
@@ -619,11 +633,12 @@ void vtkFrameBufferObject::DisplayFrameBufferAttachment(
         cout<<" this is a cube map texture and the image is contained in face "
             <<params<<endl;
         }
-       glGetFramebufferAttachmentParameterivEXT(
-         GL_FRAMEBUFFER_EXT,attachment,
-         GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_3D_ZOFFSET_EXT,&params);
-
-       vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_TEXTURE_3D_ZOFFSET_EXT");
+#ifdef GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_3D_ZOFFSET
+       glGetFramebufferAttachmentParameteriv(
+         GL_FRAMEBUFFER,attachment,
+         GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_3D_ZOFFSET,&params);
+#endif
+       vtkOpenGLCheckErrorMacro("after getting FRAMEBUFFER_ATTACHMENT_TEXTURE_3D_ZOFFSET");
       if(params==0)
         {
         cout<<" this is not 3D texture."<<endl;
@@ -634,68 +649,68 @@ void vtkFrameBufferObject::DisplayFrameBufferAttachment(
             <<params<<endl;
         }
       break;
-    case GL_RENDERBUFFER_EXT:
+    case GL_RENDERBUFFER:
       cout<<" this attachment is a renderbuffer"<<endl;
-      glGetFramebufferAttachmentParameterivEXT(
-        GL_FRAMEBUFFER_EXT,attachment,
-        GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT,&params);
-//      this->PrintError("after getting FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT");
+      glGetFramebufferAttachmentParameteriv(
+        GL_FRAMEBUFFER,attachment,
+        GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,&params);
+//      this->PrintError("after getting FRAMEBUFFER_ATTACHMENT_OBJECT_NAME");
       cout<<" this attachment is a renderbuffer with name: "<<params<<endl;
 
-      glBindRenderbufferEXT(GL_RENDERBUFFER_EXT,params);
+      glBindRenderbuffer(GL_RENDERBUFFER,params);
 //      this->PrintError(
-//        "after getting binding the current RENDERBUFFER_EXT to params");
+//        "after getting binding the current RENDERBUFFER to params");
 
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_WIDTH_EXT,
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                           GL_RENDERBUFFER_WIDTH,
                                            &params);
-//      this->PrintError("after getting RENDERBUFFER_WIDTH_EXT");
+//      this->PrintError("after getting RENDERBUFFER_WIDTH");
       cout<<" renderbuffer width="<<params<<endl;
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_HEIGHT_EXT,
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                           GL_RENDERBUFFER_HEIGHT,
                                            &params);
-//      this->PrintError("after getting RENDERBUFFER_HEIGHT_EXT");
+//      this->PrintError("after getting RENDERBUFFER_HEIGHT");
       cout<<" renderbuffer height="<<params<<endl;
-      glGetRenderbufferParameterivEXT(
-        GL_RENDERBUFFER_EXT,GL_RENDERBUFFER_INTERNAL_FORMAT_EXT,
+      glGetRenderbufferParameteriv(
+        GL_RENDERBUFFER,GL_RENDERBUFFER_INTERNAL_FORMAT,
         &params);
-//      this->PrintError("after getting RENDERBUFFER_INTERNAL_FORMAT_EXT");
+//      this->PrintError("after getting RENDERBUFFER_INTERNAL_FORMAT");
 
       cout<<" renderbuffer internal format=0x"<< std::hex<<params<<std::dec<<endl;
 
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_RED_SIZE_EXT,
-                                           &params);
-//      this->PrintError("after getting RENDERBUFFER_RED_SIZE_EXT");
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                   GL_RENDERBUFFER_RED_SIZE,
+                                   &params);
+//      this->PrintError("after getting RENDERBUFFER_RED_SIZE");
       cout<<" renderbuffer actual resolution for the red component="<<params
           <<endl;
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_GREEN_SIZE_EXT,
-                                           &params);
-//      this->PrintError("after getting RENDERBUFFER_GREEN_SIZE_EXT");
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                   GL_RENDERBUFFER_GREEN_SIZE,
+                                   &params);
+//      this->PrintError("after getting RENDERBUFFER_GREEN_SIZE");
       cout<<" renderbuffer actual resolution for the green component="<<params
           <<endl;
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_BLUE_SIZE_EXT,
-                                           &params);
-//      this->PrintError("after getting RENDERBUFFER_BLUE_SIZE_EXT");
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                   GL_RENDERBUFFER_BLUE_SIZE,
+                                   &params);
+//      this->PrintError("after getting RENDERBUFFER_BLUE_SIZE");
       cout<<" renderbuffer actual resolution for the blue component="<<params
           <<endl;
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_ALPHA_SIZE_EXT,
-                                           &params);
-//      this->PrintError("after getting RENDERBUFFER_ALPHA_SIZE_EXT");
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                   GL_RENDERBUFFER_ALPHA_SIZE,
+                                   &params);
+//      this->PrintError("after getting RENDERBUFFER_ALPHA_SIZE");
       cout<<" renderbuffer actual resolution for the alpha component="<<params
           <<endl;
-      glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT,
-                                           GL_RENDERBUFFER_DEPTH_SIZE_EXT,
-                                           &params);
-//      this->PrintError("after getting RENDERBUFFER_DEPTH_SIZE_EXT");
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER,
+                                   GL_RENDERBUFFER_DEPTH_SIZE,
+                                   &params);
+//      this->PrintError("after getting RENDERBUFFER_DEPTH_SIZE");
       cout<<" renderbuffer actual resolution for the depth component="<<params
           <<endl;
-      glGetRenderbufferParameterivEXT(
-        GL_RENDERBUFFER_EXT,GL_RENDERBUFFER_STENCIL_SIZE_EXT,&params);
-//      this->PrintError("after getting RENDERBUFFER_STENCIL_SIZE_EXT");
+      glGetRenderbufferParameteriv(
+        GL_RENDERBUFFER,GL_RENDERBUFFER_STENCIL_SIZE,&params);
+//      this->PrintError("after getting RENDERBUFFER_STENCIL_SIZE");
       cout<<" renderbuffer actual resolution for the stencil component="
           <<params<<endl;
       break;
@@ -758,13 +773,16 @@ void vtkFrameBufferObject::DisplayReadBuffer()
 // Display any buffer (convert value into string).
 void vtkFrameBufferObject::DisplayBuffer(int value)
 {
-  if(value>=static_cast<int>(GL_COLOR_ATTACHMENT0_EXT) &&
-     value<=static_cast<int>(GL_COLOR_ATTACHMENT15_EXT))
+  if(value>=static_cast<int>(GL_COLOR_ATTACHMENT0) &&
+     value<=static_cast<int>(GL_COLOR_ATTACHMENT15))
     {
-    cout << "GL_COLOR_ATTACHMENT" << (value-GL_COLOR_ATTACHMENT0_EXT);
+    cout << "GL_COLOR_ATTACHMENT" << (value-GL_COLOR_ATTACHMENT0);
     }
   else
     {
+#if GL_ES_VERSION_3_0 == 1
+      vtkErrorMacro("Attempt to use bad display destintation");
+#else
     if(value>=GL_AUX0)
       {
       int b=value-GL_AUX0;
@@ -782,7 +800,7 @@ void vtkFrameBufferObject::DisplayBuffer(int value)
         }
       }
     else
-      {
+    {
       switch(value)
         {
         case GL_NONE:
@@ -820,11 +838,15 @@ void vtkFrameBufferObject::DisplayBuffer(int value)
           break;
         }
       }
+#endif
     }
 }
 
 // ---------------------------------------------------------------------------
-void vtkFrameBufferObject::RenderQuad(int minX, int maxX, int minY, int maxY)
+// a program must be bound
+// a VAO must be bound
+void vtkFrameBufferObject::RenderQuad(int minX, int maxX, int minY, int maxY,
+        vtkShaderProgram *program, vtkgl::VertexArrayObject *vao)
 {
   assert("pre positive_minX" && minX>=0);
   assert("pre increasing_x" && minX<=maxX);
@@ -842,25 +864,37 @@ void vtkFrameBufferObject::RenderQuad(int minX, int maxX, int minY, int maxY)
   glGenQueries(1,&queryId);
   glBeginQuery(GL_SAMPLES_PASSED,queryId);
 #endif
+
   float maxYTexCoord;
   if(minY==maxY)
     {
-      maxYTexCoord=0.0;
+    maxYTexCoord=0.0;
     }
   else
     {
-      maxYTexCoord=1.0;
+    maxYTexCoord=1.0;
     }
-  glBegin(GL_QUADS);
-  glTexCoord2f(0, 0);
-  glVertex2f(minX, minY);
-  glTexCoord2f(1.0, 0);
-  glVertex2f(maxX+1, minY);
-  glTexCoord2f(1.0, maxYTexCoord);
-  glVertex2f(maxX+1, maxY+1);
-  glTexCoord2f(0, maxYTexCoord);
-  glVertex2f(minX, maxY+1);
-  glEnd();
+
+  float fminX = 2.0*minX/(this->LastSize[0]-1.0) - 1.0;
+  float fminY = 2.0*minY/(this->LastSize[1]-1.0) - 1.0;
+  float fmaxX = 2.0*maxX/(this->LastSize[0]-1.0) - 1.0;
+  float fmaxY = 2.0*maxY/(this->LastSize[1]-1.0) - 1.0;
+
+  float verts[] =  {
+    fminX, fminY, 0,
+    fmaxX, fminY, 0,
+    fmaxX, fmaxY, 0,
+    fminX, fmaxY, 0};
+
+  float tcoords[] = {
+    0, 0,
+    1.0, 0,
+    1.0, maxYTexCoord,
+    0, maxYTexCoord};
+  vtkOpenGLRenderWindow::RenderQuad(verts, tcoords, program, vao);
+
+  vtkOpenGLCheckErrorMacro("failed after Render");
+
 #ifdef VTK_FBO_DEBUG
   glEndQuery(GL_SAMPLES_PASSED);
   glGetQueryObjectuiv(queryId,GL_QUERY_RESULT,&nbPixels);
@@ -889,52 +923,54 @@ void vtkFrameBufferObject::PrintSelf(ostream& os, vtkIndent indent)
      << endl;
 }
 
-// Description:
-// Common switch for parsing fbo status return.
-#define vtkFBOStrErrorMacro(status, str, ok) \
-  ok = false; \
-  switch(status) \
-    { \
-    case GL_FRAMEBUFFER_COMPLETE_EXT: \
-      str = "FBO complete"; \
-      ok = true; \
-      break; \
-    case GL_FRAMEBUFFER_UNSUPPORTED_EXT: \
-      str = "FRAMEBUFFER_UNSUPPORTED"; \
-      break; \
-    case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT: \
-      str = "FRAMEBUFFER_INCOMPLETE_ATTACHMENT"; \
-      break; \
-    case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT: \
-      str = "FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"; \
-      break; \
-    case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT: \
-      str = "FRAMEBUFFER_INCOMPLETE_DIMENSIONS"; \
-      break; \
-    case GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT: \
-      str = "FRAMEBUFFER_INCOMPLETE_FORMATS"; \
-      break; \
-    case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT: \
-      str = "FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"; \
-      break; \
-    case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT: \
-      str = "FRAMEBUFFER_INCOMPLETE_READ_BUFFER"; \
-      break; \
-    default: \
-      str = "Unknown status"; \
-    }
-
 // ----------------------------------------------------------------------------
 int vtkFrameBufferObject::CheckFrameBufferStatus(unsigned int mode)
 {
-  bool ok;
-  const char *desc = "error";
-  GLenum status = glCheckFramebufferStatusEXT((GLenum)mode);
+  bool ok = false;
+  const char *str = "error";
+  GLenum status = glCheckFramebufferStatus((GLenum)mode);
   vtkOpenGLCheckErrorMacro("failed at glCheckFramebufferStatus");
-  vtkFBOStrErrorMacro(status, desc, ok);
+  switch(status)
+    {
+    case GL_FRAMEBUFFER_COMPLETE:
+      str = "FBO complete";
+      ok = true;
+      break;
+    case GL_FRAMEBUFFER_UNSUPPORTED:
+      str = "FRAMEBUFFER_UNSUPPORTED";
+      break;
+    case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+      str = "FRAMEBUFFER_INCOMPLETE_ATTACHMENT";
+      break;
+    case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+      str = "FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT";
+      break;
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS
+    case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
+      str = "FRAMEBUFFER_INCOMPLETE_DIMENSIONS";
+      break;
+#endif
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_FORMATS
+    case GL_FRAMEBUFFER_INCOMPLETE_FORMATS:
+      str = "FRAMEBUFFER_INCOMPLETE_FORMATS";
+      break;
+#endif
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER
+    case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
+      str = "FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER";
+      break;
+#endif
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER
+    case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
+      str = "FRAMEBUFFER_INCOMPLETE_READ_BUFFER";
+      break;
+#endif
+    default:
+      str = "Unknown status";
+    }
   if (!ok)
     {
-    vtkErrorMacro("The framebuffer is incomplete : " << desc);
+    vtkErrorMacro("The framebuffer is incomplete : " << str);
     return 0;
     }
   return 1;

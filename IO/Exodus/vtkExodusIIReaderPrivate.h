@@ -1,5 +1,5 @@
-#ifndef __vtkExodusIIReaderPrivate_h
-#define __vtkExodusIIReaderPrivate_h
+#ifndef vtkExodusIIReaderPrivate_h
+#define vtkExodusIIReaderPrivate_h
 
 // Do not include this file directly. It is only for use
 // from inside the ExodusII reader and its descendants.
@@ -83,11 +83,6 @@ public:
     */
   int GetNumberOfTimeSteps() { return (int) this->Times.size(); }
 
-  /// Return the current time step
-  vtkGetMacro(TimeStep,int);
-
-  /// Set the current time step for subsequent calls to RequestData().
-  vtkSetMacro(TimeStep,int);
 
   /// Return whether subsequent RequestData() calls will produce the minimal
   /// point set required to represent the output.
@@ -770,8 +765,6 @@ protected:
   /// A list of time steps for which results variables are stored.
   std::vector<double> Times;
 
-  /// The current time step
-  int TimeStep;
 
   /** The time value. This is used internally when HasModeShapes is true and
     * ignored otherwise.
@@ -832,5 +825,5 @@ private:
   void operator = ( const vtkExodusIIReaderPrivate& ); // Not implemented.
 };
 
-#endif // __vtkExodusIIReaderPrivate_h
+#endif // vtkExodusIIReaderPrivate_h
 // VTK-HeaderTest-Exclude: vtkExodusIIReaderPrivate.h

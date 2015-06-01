@@ -9,7 +9,6 @@ vtk_module(vtkFiltersSources
     vtkTestingRendering
     vtkInteractionStyle
     vtkRendering${VTK_RENDERING_BACKEND}
-    vtkRenderingFreeTypeOpenGL
     vtkFiltersModeling
     vtkIOXML
   KIT

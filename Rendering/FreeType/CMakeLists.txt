@@ -6,8 +6,6 @@ set(Module_SRCS
   vtkFreeTypeTools.cxx
   vtkMathTextFreeTypeTextRenderer.cxx
   vtkMathTextUtilities.cxx
-  vtkTextActor3D.cxx
-  vtkTextActor.cxx
   vtkTextRendererStringToImage.cxx
   vtkScaledTextActor.cxx
   vtkVectorText.cxx
@@ -43,6 +41,7 @@ set_source_files_properties(
   fonts/face_times_bold_italic
   fonts/face_times
   fonts/face_times_italic
+  ${CMAKE_CURRENT_BINARY_DIR}/${vtk-module}ObjectFactory.cxx
   WRAP_EXCLUDE
   )
 

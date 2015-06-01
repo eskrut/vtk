@@ -643,6 +643,8 @@ inline void vtkStructuredGridConnectivity::GetGhostedGridExtent(
 
   if( this->GhostedExtents.size() == 0 )
     {
+    ext[0] = ext[2] = ext[4] = -1;
+    ext[1] = ext[3] = ext[5] = 0;
     vtkErrorMacro( "No ghosted extents found for registered grid extends!!!" );
     return;
     }
@@ -971,6 +973,12 @@ inline int vtkStructuredGridConnectivity::GetNumberOfConnectingBlockFaces(
 inline void vtkStructuredGridConnectivity::SetNumberOfGrids(
     const unsigned int N )
 {
+  if (N == 0)
+    {
+    vtkErrorMacro("Number of grids cannot be 0.");
+    return;
+    }
+
   this->NumberOfGrids = N;
   this->AllocateUserRegisterDataStructures();
 

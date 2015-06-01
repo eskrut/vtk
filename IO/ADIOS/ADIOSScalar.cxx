@@ -1,130 +1,135 @@
-#include <cstring>
+/*=========================================================================
 
-#include "ADIOSScalar.h"
-#include "ADIOSUtilities.h"
+  Program:   Visualization Toolkit
+  Module:    ADIOSScalar.cxx
+
+  Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
+  All rights reserved.
+  See Copyright.txt or http://www.kitware.com/Copyright.htm for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notice for more information.
+
+=========================================================================*/
+
+#include <complex>
+#include <stdexcept>
 
 #include <adios_read.h>
 
-template<typename T>
-void DecodeValues(const ADIOS_VARINFO *v, std::vector<void*> &values)
-{
-  for(int t = 0; t < v->nsteps; ++t)
-    {
-    std::vector<T> *data = new std::vector<T>(v->nblocks[t]);
-    values[t] = data;
-    for(int b = 0; b < v->nblocks[t]; ++b)
-      {
-      (*data)[b] = *reinterpret_cast<T*>(v->statistics->blocks->mins[b]);
-      }
-    }
-}
+#include "ADIOSScalar.h"
 
-template<>
-void DecodeValues<std::string>(const ADIOS_VARINFO *v,
-  std::vector<void*> &values)
+namespace ADIOS
 {
-  for(int t = 0; t < v->nsteps; ++t)
+
+template<typename T>
+void LoadScalarsFromStats(void* &ptr, ADIOS_VARINFO *v)
+{
+  T* &ptrT = reinterpret_cast<T*&>(ptr);
+  ptrT = new T[v->sum_nblocks];
+  for(size_t i = 0; i < v->sum_nblocks; ++i)
     {
-    std::vector<std::string> *data =
-      new std::vector<std::string>(v->nblocks[t]);
-    values[t] = data;
-    for(int b = 0; b < v->nblocks[t]; ++b)
-      {
-      (*data)[b] = reinterpret_cast<const char*>(
-        v->statistics->blocks->mins[b]);
-      }
+    ptrT[i] = *reinterpret_cast<const T*>(v->statistics->blocks->mins[i]);
     }
 }
 
 //----------------------------------------------------------------------------
-ADIOSScalar::ADIOSScalar(ADIOS_FILE *f, ADIOS_VARINFO *v)
-: Id(v->varid), Type(ADIOSUtilities::TypeADIOSToVTK(v->type)),
-  NumSteps(v->nsteps), Name(f->var_namelist[v->varid]), Values(v->nsteps)
-{
-  int err;
-
-  err = adios_inq_var_stat(f, v, 1, 1);
-  ADIOSUtilities::TestReadErrorEq<int>(0, err);
-
-  err = adios_inq_var_blockinfo(f, v);
-  ADIOSUtilities::TestReadErrorEq<int>(0, err);
-
-  switch(v->type)
-    {
-    case adios_byte:             DecodeValues<int8_t>(v, this->Values);
-      break;
-    case adios_short:            DecodeValues<int16_t>(v, this->Values);
-      break;
-    case adios_integer:          DecodeValues<int32_t>(v, this->Values);
-      break;
-    case adios_long:             DecodeValues<vtkIdType>(v, this->Values);
-      break;
-    case adios_unsigned_byte:    DecodeValues<uint8_t>(v, this->Values);
-      break;
-    case adios_unsigned_short:   DecodeValues<uint16_t>(v, this->Values);
-      break;
-    case adios_unsigned_integer: DecodeValues<uint32_t>(v, this->Values);
-      break;
-    case adios_unsigned_long:    DecodeValues<uint64_t>(v, this->Values);
-      break;
-    case adios_real:             DecodeValues<float>(v, this->Values);
-      break;
-    case adios_double:           DecodeValues<double>(v, this->Values);
-      break;
-    default: break;
-    }
-}
-
-//----------------------------------------------------------------------------
-template<typename T>
-void Cleanup(std::vector<void*>& values)
-{
-  for(std::vector<void*>::iterator i = values.begin(); i != values.end(); ++i)
-    {
-    delete reinterpret_cast<std::vector<T>*>(*i);
-    *i = NULL;
-    }
-  values.clear();
-}
-
-ADIOSScalar::~ADIOSScalar(void)
+Scalar::Scalar(ADIOS_FILE *f, ADIOS_VARINFO *v)
+: VarInfo(f, v), Values(NULL)
 {
   switch(this->Type)
     {
-    case VTK_TYPE_INT8:    Cleanup<int8_t>(this->Values); break;
-    case VTK_TYPE_INT16:   Cleanup<int16_t>(this->Values); break;
-    case VTK_TYPE_INT32:   Cleanup<int32_t>(this->Values); break;
-    case VTK_ID_TYPE:      Cleanup<vtkIdType>(this->Values); break;
-    case VTK_TYPE_UINT8:   Cleanup<uint8_t>(this->Values); break;
-    case VTK_TYPE_UINT16:  Cleanup<uint16_t>(this->Values); break;
-    case VTK_TYPE_UINT32:  Cleanup<uint32_t>(this->Values); break;
-    case VTK_TYPE_UINT64:  Cleanup<uint64_t>(this->Values); break;
-    case VTK_TYPE_FLOAT32: Cleanup<float>(this->Values); break;
-    case VTK_TYPE_FLOAT64: Cleanup<double>(this->Values); break;
-    default: break;
+    case adios_byte:
+      LoadScalarsFromStats<int8_t>(this->Values, v);
+      break;
+    case adios_short:
+      LoadScalarsFromStats<int16_t>(this->Values, v);
+      break;
+    case adios_integer:
+      LoadScalarsFromStats<int32_t>(this->Values, v);
+      break;
+    case adios_long:
+      LoadScalarsFromStats<int64_t>(this->Values, v);
+      break;
+    case adios_unsigned_byte:
+      LoadScalarsFromStats<uint8_t>(this->Values, v);
+      break;
+    case adios_unsigned_short:
+      LoadScalarsFromStats<uint16_t>(this->Values, v);
+      break;
+    case adios_unsigned_integer:
+      LoadScalarsFromStats<uint32_t>(this->Values, v);
+      break;
+    case adios_unsigned_long:
+      LoadScalarsFromStats<uint64_t>(this->Values, v);
+      break;
+    case adios_real:
+      LoadScalarsFromStats<float>(this->Values, v);
+      break;
+    case adios_double:
+      LoadScalarsFromStats<double>(this->Values, v);
+      break;
+    case adios_complex:
+      LoadScalarsFromStats<std::complex<float> >(this->Values, v);
+      break;
+    case adios_double_complex:
+      LoadScalarsFromStats<std::complex<double> >(this->Values, v);
+      break;
+    default:
+      // Unsupported data type
+      break;
     }
 }
 
 //----------------------------------------------------------------------------
-template<typename TN>
-const std::vector<TN>& ADIOSScalar::GetValues(int step) const
+Scalar::~Scalar()
 {
-  if(ADIOSUtilities::TypeNativeToVTK<TN>::T != this->Type)
+  if(!this->Values)
     {
-    throw std::invalid_argument("Incompatible type");
+    return;
     }
-  return *reinterpret_cast<std::vector<TN>*>(this->Values[step]);
+
+  switch(this->Type)
+    {
+    case adios_byte:
+      delete[] reinterpret_cast<int8_t*>(this->Values);
+      break;
+    case adios_short:
+      delete[] reinterpret_cast<int16_t*>(this->Values);
+      break;
+    case adios_integer:
+      delete[] reinterpret_cast<int32_t*>(this->Values);
+      break;
+    case adios_long:
+      delete[] reinterpret_cast<int64_t*>(this->Values);
+      break;
+    case adios_unsigned_byte:
+      delete[] reinterpret_cast<uint8_t*>(this->Values);
+      break;
+    case adios_unsigned_short:
+      delete[] reinterpret_cast<uint16_t*>(this->Values);
+      break;
+    case adios_unsigned_integer:
+      delete[] reinterpret_cast<uint32_t*>(this->Values);
+      break;
+    case adios_unsigned_long:
+      delete[] reinterpret_cast<uint64_t*>(this->Values);
+      break;
+    case adios_real:
+      delete[] reinterpret_cast<float*>(this->Values);
+      break;
+    case adios_double:
+      delete[] reinterpret_cast<double*>(this->Values);
+      break;
+    case adios_complex:
+      delete[] reinterpret_cast<std::complex<float>*>(this->Values);
+      break;
+    case adios_double_complex:
+      delete[] reinterpret_cast<std::complex<double>*>(this->Values);
+      break;
+    default: break;
+    }
 }
-#define INSTANTIATE(T) \
-template const std::vector<T>& ADIOSScalar::GetValues(int) const;
-INSTANTIATE(int8_t)
-INSTANTIATE(int16_t)
-INSTANTIATE(int32_t)
-INSTANTIATE(vtkIdType)
-INSTANTIATE(uint8_t)
-INSTANTIATE(uint16_t)
-INSTANTIATE(uint32_t)
-INSTANTIATE(uint64_t)
-INSTANTIATE(float)
-INSTANTIATE(double)
-#undef INSTANTIATE
+
+} // End namespace ADIOS

@@ -27,8 +27,8 @@
 // The best way to use this class is to subclass it to set the DataKey data member.
 // This is usually done in the subclass' constructor.
 
-#ifndef __vtkInformationIntegerRequestKey_h
-#define __vtkInformationIntegerRequestKey_h
+#ifndef vtkInformationIntegerRequestKey_h
+#define vtkInformationIntegerRequestKey_h
 
 #include "vtkCommonExecutionModelModule.h" // For export macro
 #include "vtkInformationIntegerKey.h"
@@ -43,6 +43,15 @@ public:
 
   vtkInformationIntegerRequestKey(const char* name, const char* location);
   ~vtkInformationIntegerRequestKey();
+
+  // Description:
+  // This method simply returns a new vtkInformationIntegerRequestKey,
+  // given a name and a location. This method is provided for wrappers. Use
+  // the constructor directly from C++ instead.
+  static vtkInformationIntegerRequestKey* MakeKey(const char* name, const char* location)
+    {
+    return new vtkInformationIntegerRequestKey(name, location);
+    }
 
   // Description:
   // Returns true if a value of type DataKey does not exist in dobjInfo

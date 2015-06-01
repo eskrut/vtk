@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGL.h
+  Module:    vtkOpenGLError.h
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -12,13 +12,22 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkOpenGLError_h
-#define __vtkOpenGLError_h
+#ifndef vtkOpenGLError_h
+#define vtkOpenGLError_h
 
 #include "vtkSetGet.h"
 #include "vtk_glew.h"
 
+#ifndef NDEBUG
+// debug build.
 #cmakedefine VTK_REPORT_OPENGL_ERRORS
+#else // NDEBUG
+// release build
+#cmakedefine VTK_REPORT_OPENGL_ERRORS_IN_RELEASE_BUILDS
+#if defined(VTK_REPORT_OPENGL_ERRORS_IN_RELEASE_BUILDS)
+#cmakedefine VTK_REPORT_OPENGL_ERRORS
+#endif // defined(VTK_REPORT_OPENGL_ERRORS_IN_RELEASE_BUILDS)
+#endif // NDEBUG
 
 // Description:
 // The following functions can be used to detect and report, and/or
@@ -62,32 +71,23 @@ const char *vtkOpenGLStrError(unsigned int code)
     {
     case GL_NO_ERROR:
       return "No error";
-      break;
     case GL_INVALID_ENUM:
       return "Invalid enum";
-      break;
     case GL_INVALID_VALUE:
       return "Invalid value";
-      break;
     case GL_INVALID_OPERATION:
       return "Invalid operation";
-      break;
     case GL_OUT_OF_MEMORY:
       return "Out of memory";
-      break;
 #if GL_ES_VERSION_2_0 != 1
     case GL_STACK_OVERFLOW:
       return "Stack overflow";
-      break;
     case GL_STACK_UNDERFLOW:
       return "Stack underflow";
-      break;
     case GL_TABLE_TOO_LARGE:
       return "Table too large";
-      break;
     case GL_INVALID_FRAMEBUFFER_OPERATION_EXT:
       return "Invalid framebuffer operation";
-      break;
 #endif
     }
   return "Unknown error";

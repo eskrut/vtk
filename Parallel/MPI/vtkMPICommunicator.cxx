@@ -381,7 +381,7 @@ vtkMPICommunicator* vtkMPICommunicator::GetWorldCommunicator()
     {
     // Install an error handler
     MPI_Errhandler errhandler;
-#if (MPI_VERSION > 2) || ((MPI_VERSION == 2) && (MPI_SUBVERSION >= 2))
+#if (MPI_VERSION > 2) || ((MPI_VERSION == 2) && (MPI_SUBVERSION >= 0))
     MPI_Comm_create_errhandler(vtkMPICommunicatorMPIErrorHandler, &errhandler);
     MPI_Comm_set_errhandler(MPI_COMM_WORLD, errhandler);
 #else
@@ -493,6 +493,16 @@ int vtkMPICommunicator::Initialize(vtkProcessGroup *group)
   if (!mpiComm->Initialized)
     {
     vtkWarningMacro("The communicator passed has not been initialized!");
+    return 0;
+    }
+
+  if(group->GetNumberOfProcessIds() == 0)
+    {
+    // Based on interpreting the MPI documentation it doesn't seem like a
+    // requirement but in practical terms it doesn't seem to make sense
+    // to create an MPI communicator with 0 processes. Also, some
+    // implementations of MPI crash if this is the case.
+    vtkWarningMacro("The group doesn't contain any process ids!");
     return 0;
     }
 
@@ -629,10 +639,7 @@ int vtkMPICommunicator::InitializeExternal (vtkMPICommunicatorOpaqueComm* comm)
 {
   this->KeepHandleOn();
 
-  if (this->MPIComm->Handle)
-    {
-    delete this->MPIComm->Handle;
-    }
+  delete this->MPIComm->Handle;
   this->MPIComm->Handle = new MPI_Comm (*(comm->GetHandle()));
   this->InitializeNumberOfProcesses();
   this->Initialized = 1;

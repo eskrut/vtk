@@ -37,8 +37,8 @@
 // Kitware 2013
 // This work was supported in part by Commissariat a l'Energie Atomique (CEA/DIF)
 
-#ifndef __vtkHyperTreeGridSource_h
-#define __vtkHyperTreeGridSource_h
+#ifndef vtkHyperTreeGridSource_h
+#define vtkHyperTreeGridSource_h
 
 #include "vtkFiltersSourcesModule.h" // For export macro
 #include "vtkHyperTreeGridAlgorithm.h"
@@ -214,7 +214,7 @@ protected:
   void SubdivideFromQuadric( vtkHyperTreeCursor* cursor,
                              unsigned int level,
                              int treeIdx,
-                             int idx[3],
+                             const int idx[3],
                              double origin[3],
                              double size[3] );
 

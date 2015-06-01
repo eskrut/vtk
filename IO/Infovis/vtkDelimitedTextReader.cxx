@@ -137,18 +137,6 @@ public:
       }
   }
 
-  DelimitedTextIterator& operator=(const DelimitedTextIterator& c)
-  {
-    if(this != &c)
-      {
-      this->CurrentField = c.CurrentField;
-      this->CurrentFieldIndex = c.CurrentFieldIndex;
-      this->CurrentRecordIndex = c.CurrentRecordIndex;
-      this->OutputTable = c.OutputTable;
-      }
-    return *this;
-  }
-
   DelimitedTextIterator& operator=(const vtkUnicodeString::value_type value)
   {
     // If we've already read our maximum number of records, we're done ...
@@ -488,10 +476,7 @@ void vtkDelimitedTextReader::SetInputString(const char *in, int len)
     return;
     }
 
-  if (this->InputString)
-    {
-    delete [] this->InputString;
-    }
+  delete [] this->InputString;
 
   if (in && len>0)
     {

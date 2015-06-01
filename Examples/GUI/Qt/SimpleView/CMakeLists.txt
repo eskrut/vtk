@@ -5,6 +5,9 @@ endif()
 if(POLICY CMP0025)
   cmake_policy(SET CMP0025 NEW) # CMake 3.0
 endif()
+if(POLICY CMP0043)
+  cmake_policy(SET CMP0043 NEW) # CMake 3.0
+endif()
 if(POLICY CMP0053)
   cmake_policy(SET CMP0053 NEW) # CMake 3.1
 endif()
@@ -15,7 +18,6 @@ find_package(VTK COMPONENTS
   vtkFiltersCore
   vtkInfovisCore
   vtkInteractionStyle
-  vtkRenderingFreeTypeOpenGL
   vtkViewsQt
 )
 include(${VTK_USE_FILE})
@@ -48,7 +50,7 @@ set(CMAKE_AUTOMOC ON)
 # The rest should just work (sure...)
 if(VTK_QT_VERSION VERSION_GREATER "4")
   # We have ui files, this will bring in the macro: qt5_wrap_ui
-  find_package(Qt5Widgets REQUIRED QUIET)
+  find_package(Qt5 COMPONENTS Widgets REQUIRED QUIET)
   qt5_wrap_ui(UI_Srcs ${UIs})
   qt5_add_resources(QRC_Srcs ${QRCs} )
 

@@ -937,17 +937,25 @@ int vtkExtractSelectedFrustum::ABoxFrustumIsect(double *bounds, vtkCell *cell)
     switch (cell->GetCellType())
       {
       case VTK_PIXEL:
+        {
+        edge = cell->GetEdge(2);
+        pts = edge->GetPoints();
+        pts->GetPoint(0, &vlist[3*3]);
+        pts->GetPoint(1, &vlist[2*3]);
+        break;
+        }
       case VTK_QUAD:
         {
         edge = cell->GetEdge(2);
         pts = edge->GetPoints();
-        pts->GetPoint(1, &vlist[2*3]);
-        pts->GetPoint(0, &vlist[3*3]);
+        pts->GetPoint(0, &vlist[2*3]);
+        pts->GetPoint(1, &vlist[3*3]);
         break;
         }
       case VTK_TRIANGLE:
         {
         edge = cell->GetEdge(1);
+        pts = edge->GetPoints();
         pts->GetPoint(1, &vlist[2*3]);
         break;
         }
@@ -1008,17 +1016,23 @@ int vtkExtractSelectedFrustum::ABoxFrustumIsect(double *bounds, vtkCell *cell)
       switch (face->GetCellType())
         {
         case VTK_PIXEL:
+          edge = face->GetEdge(2);
+          pts = edge->GetPoints();
+          pts->GetPoint(0, &vlist[3*3]);
+          pts->GetPoint(1, &vlist[2*3]);
+          break;
         case VTK_QUAD:
           {
           edge = face->GetEdge(2);
           pts = edge->GetPoints();
-          pts->GetPoint(1, &vlist[2*3]);
-          pts->GetPoint(0, &vlist[3*3]);
+          pts->GetPoint(0, &vlist[2*3]);
+          pts->GetPoint(1, &vlist[3*3]);
           break;
           }
         case VTK_TRIANGLE:
           {
           edge = face->GetEdge(1);
+          pts = edge->GetPoints();
           pts->GetPoint(1, &vlist[2*3]);
           break;
           }
@@ -1053,10 +1067,10 @@ int vtkExtractSelectedFrustum::ABoxFrustumIsect(double *bounds, vtkCell *cell)
 //handle degenerate cells by testing each point, if any in, then in
 int vtkExtractSelectedFrustum::IsectDegenerateCell(vtkCell *cell)
 {
-  int npts = cell->GetNumberOfPoints();
+  vtkIdType npts = cell->GetNumberOfPoints();
   vtkPoints *pts = cell->GetPoints();
   double x[3];
-  for (int i = 0; i < npts; i++)
+  for (vtkIdType i = 0; i < npts; i++)
     {
     pts->GetPoint(i, x);
     if (this->Frustum->EvaluateFunction(x) < 0.0)

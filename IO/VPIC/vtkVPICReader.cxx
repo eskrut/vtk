@@ -101,10 +101,7 @@ vtkVPICReader::vtkVPICReader()
 //----------------------------------------------------------------------------
 vtkVPICReader::~vtkVPICReader()
 {
-  if (this->FileName)
-    {
-    delete [] this->FileName;
-    }
+  delete [] this->FileName;
   this->PointDataArraySelection->Delete();
 
   delete this->vpicData;
@@ -113,8 +110,7 @@ vtkVPICReader::~vtkVPICReader()
   delete [] this->TimeSteps;
   delete [] this->dataLoaded;
 
-  if (this->exchanger)
-    delete this->exchanger;
+  delete this->exchanger;
 
   if (this->data)
     {

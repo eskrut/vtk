@@ -21,8 +21,8 @@
 // to facilitate the low level calls to the context. Currently only an OpenGL
 // based device is provided, but this could be extended in the future.
 
-#ifndef __vtkContext2D_h
-#define __vtkContext2D_h
+#ifndef vtkContext2D_h
+#define vtkContext2D_h
 
 #include "vtkRenderingContext2DModule.h" // For export macro
 #include "vtkObject.h"
@@ -123,6 +123,16 @@ public:
   // Note: Fastest code path - points packed in x and y.
   void DrawPoly(float *points, int n,
                 unsigned char *colors, int nc_comps);
+
+  // Description:
+  // Draw multiple lines between the specified pairs of points.
+  // \sa DrawPoly()
+  void DrawLines(vtkPoints2D *points);
+
+  // Description:
+  // Draw multiple lines between the specified pairs of points
+  // \sa DrawPoly()
+  void DrawLines(float *points, int n);
 
   // Description:
   // Draw a point at the supplied x and y coordinate
@@ -455,4 +465,4 @@ inline int vtkContext2D::FloatToInt(float x)
   return static_cast<int>(x + tol);
 }
 
-#endif //__vtkContext2D_h
+#endif //vtkContext2D_h

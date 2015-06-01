@@ -29,6 +29,7 @@
 # define VTK_USE_UINT64 0
 
 #define VTK_BSPLINE_KERNEL_SIZE_MAX (VTK_IMAGE_BSPLINE_DEGREE_MAX + 1)
+#define VTK_BSPLINE_INT_INITIALIZER { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }
 
 // kernel lookup table size must be 256*n where n is kernel half-width
 // in order to provide sufficient precision for 16-bit images
@@ -646,52 +647,52 @@ void vtkImageBSplineInterpolatorPrecomputeWeights(
       F f = 0;
       int idx = vtkInterpolationMath::Floor(point + offset, f);
       f -= offset;
-      int lmax = 1;
       if (step > 1)
         {
         idx -= m2;
-        lmax = m;
-        }
-
-      int inId[VTK_BSPLINE_KERNEL_SIZE_MAX];
-
-      int l = 0;
-      switch (weights->BorderMode)
-        {
-        case VTK_IMAGE_BORDER_REPEAT:
-          do
-            {
-            inId[l] = vtkInterpolationMath::Wrap(idx++, minExt, maxExt);
-            }
-          while (++l < lmax);
-          break;
-
-        case VTK_IMAGE_BORDER_MIRROR:
-          do
-            {
-            inId[l] = vtkInterpolationMath::Mirror(idx++, minExt, maxExt);
-            }
-          while (++l < lmax);
-          break;
-
-        default:
-           do
-            {
-            inId[l] = vtkInterpolationMath::Clamp(idx++, minExt, maxExt);
-            }
-          while (++l < lmax);
-          break;
         }
 
       // compute the weights and offsets
       vtkIdType inInc = weights->Increments[k];
-      if (step == 1)
+      if (inCount == 1)
         {
-        positions[step*i] = inId[0]*inInc;
+        positions[step*i] = 0;
         constants[step*i] = static_cast<F>(1);
         }
       else
         {
+        // initialization is needed to avoid a warning for gcc 4.9.2, but
+        // not for other compilers or for valgrind
+        int inId[VTK_BSPLINE_KERNEL_SIZE_MAX] = VTK_BSPLINE_INT_INITIALIZER;
+
+        int l = 0;
+        switch (weights->BorderMode)
+          {
+          case VTK_IMAGE_BORDER_REPEAT:
+            do
+              {
+              inId[l] = vtkInterpolationMath::Wrap(idx++, minExt, maxExt);
+              }
+            while (++l < m);
+            break;
+
+          case VTK_IMAGE_BORDER_MIRROR:
+            do
+              {
+              inId[l] = vtkInterpolationMath::Mirror(idx++, minExt, maxExt);
+              }
+            while (++l < m);
+            break;
+
+          default:
+             do
+              {
+              inId[l] = vtkInterpolationMath::Clamp(idx++, minExt, maxExt);
+              }
+            while (++l < m);
+            break;
+          }
+
         F g[VTK_BSPLINE_KERNEL_SIZE_MAX];
 #ifdef VTK_BSPLINE_USE_KERNEL_TABLE
         vtkBSplineInterpWeights(kernel, g, f, m-1);
@@ -717,14 +718,14 @@ void vtkImageBSplineInterpolatorPrecomputeWeights(
           ll = 0;
           do
             {
-            int rIdx = inId[ll] - minExt;
+            int rIdx = inId[ll];
             gg[rIdx] += g[ll];
             }
           while (++ll < m);
           ll = 0;
           do
             {
-            positions[step*i + ll] = minExt + ll;
+            positions[step*i + ll] = ll*inInc;
             constants[step*i + ll] = gg[ll];
             }
           while (++ll < step);
@@ -861,9 +862,6 @@ void vtkImageBSplineInterpolator::FreeKernelLookupTable()
 {
 #ifdef VTK_BSPLINE_USE_KERNEL_TABLE
   float *kernel = this->KernelLookupTable;
-  if (kernel)
-    {
-    delete [] kernel;
-    }
+  delete [] kernel;
 #endif
 }

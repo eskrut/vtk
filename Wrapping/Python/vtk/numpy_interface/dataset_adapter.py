@@ -72,6 +72,35 @@ from vtk.util import numpy_support
 from vtk.vtkCommonDataModel import vtkDataObject
 import weakref
 
+def reshape_append_ones (a1, a2):
+    """Returns a list with the two arguments, any of them may be
+    processed.  If the arguments are numpy.ndarrays, append 1s to the
+    shape of the array with the smallest number of dimensions until
+    the arrays have the same number of dimensions. Does nothing if the
+    arguments are not ndarrays or the arrays have the same number of
+    dimensions.
+
+    """
+    l = [a1, a2]
+    if (isinstance(a1, numpy.ndarray) and isinstance(a2, numpy.ndarray)):
+        len1 = len(a1.shape)
+        len2 = len(a2.shape)
+        if (len1 == len2 or len1 == 0 or len2 == 0 or
+            a1.shape[0] != a2.shape[0]):
+            return l;
+        elif (len1 < len2):
+            d = len1
+            maxLength = len2
+            i = 0
+        else:
+            d = len2
+            maxLength = len1
+            i = 1
+        while (d < maxLength):
+            l[i] = numpy.expand_dims(l[i], d)
+            d = d + 1
+    return l
+
 class ArrayAssociation :
     """Easy access to vtkDataObject.AttributeTypes"""
     POINT = vtkDataObject.POINT
@@ -109,14 +138,14 @@ def vtkDataArrayToVTKArray(array, dataset=None):
 
     return VTKArray(narray, array=array, dataset=dataset)
 
-def numpyTovtkDataArray(array, name="numpy_array"):
+def numpyTovtkDataArray(array, name="numpy_array", array_type=None):
     """Given a numpy array or a VTKArray and a name, returns a vtkDataArray.
     The resulting vtkDataArray will store a reference to the numpy array
     through a DeleteEvent observer: the numpy array is released only when
     the vtkDataArray is destroyed."""
     if not array.flags.contiguous:
         array = array.copy()
-    vtkarray = numpy_support.numpy_to_vtk(array)
+    vtkarray = numpy_support.numpy_to_vtk(array, array_type=array_type)
     vtkarray.SetName(name)
     # This makes the VTK array carry a reference to the numpy array.
     vtkarray.AddObserver('DeleteEvent', _MakeObserver(array))
@@ -139,6 +168,87 @@ class VTKArray(numpy.ndarray):
     reference to a vtk array as well as the owning dataset.
     The numpy array and vtk array should point to the same
     memory location."""
+
+    def __metaclass__(name, parent, attr):
+        """We overwrite numerical/comparison operators because we might need
+        to reshape one of the arrays to perform the operation without
+        broadcast errors. For instace:
+
+        An array G of shape (n,3) resulted from computing the
+        gradient on a scalar array S of shape (n,) cannot be added together without
+        reshaping.
+        G + expand_dims(S,1) works,
+        G + S gives an error:
+        ValueError: operands could not be broadcast together with shapes (n,3) (n,)
+
+        This metaclass overwrites operators such that it computes this
+        reshape operation automatically by appending 1s to the
+        dimensions of the array with fewer dimensions.
+
+        """
+        def add_numeric_op(attr_name):
+            """Create an attribute named attr_name that calls
+            _numeric_op(self, other, op)."""
+            def closure(self, other):
+                return VTKArray._numeric_op(self, other, attr_name)
+            closure.__name__ = attr_name
+            attr[attr_name] = closure
+
+        def add_default_numeric_op(op_name):
+            """Adds '__[op_name]__' attribute that uses operator.[op_name]"""
+            add_numeric_op("__%s__"%op_name)
+
+        def add_reverse_numeric_op(attr_name):
+            """Create an attribute named attr_name that calls
+            _reverse_numeric_op(self, other, op)."""
+            def closure(self, other):
+                return VTKArray._reverse_numeric_op(self, other, attr_name)
+            closure.__name__ = attr_name
+            attr[attr_name] = closure
+
+        def add_default_reverse_numeric_op(op_name):
+            """Adds '__r[op_name]__' attribute that uses operator.[op_name]"""
+            add_reverse_numeric_op("__r%s__"%op_name)
+
+        def add_default_numeric_ops(op_name):
+            """Call both add_default_numeric_op and add_default_reverse_numeric_op."""
+            add_default_numeric_op(op_name)
+            add_default_reverse_numeric_op(op_name)
+
+        add_default_numeric_ops("add")
+        add_default_numeric_ops("sub")
+        add_default_numeric_ops("mul")
+        add_default_numeric_ops("div")
+        add_default_numeric_ops("truediv")
+        add_default_numeric_ops("floordiv")
+        add_default_numeric_ops("mod")
+        add_default_numeric_ops("pow")
+        add_default_numeric_ops("lshift")
+        add_default_numeric_ops("rshift")
+        add_numeric_op("and")
+        add_default_numeric_ops("xor")
+        add_numeric_op("or")
+
+        add_default_numeric_op("lt")
+        add_default_numeric_op("le")
+        add_default_numeric_op("eq")
+        add_default_numeric_op("ne")
+        add_default_numeric_op("ge")
+        add_default_numeric_op("gt")
+        return type(name, parent, attr)
+
+
+    def _numeric_op(self, other, attr_name):
+        """Used to implement numpy-style numerical operations such as __add__,
+        __mul__, etc."""
+        l = reshape_append_ones(self, other)
+        return getattr(numpy.ndarray, attr_name)(l[0], l[1])
+
+    def _reverse_numeric_op(self, other, attr_name):
+        """Used to implement numpy-style numerical operations such as __add__,
+        __mul__, etc."""
+        l = reshape_append_ones(self, other)
+        return getattr(numpy.ndarray, attr_name)(l[0], l[1])
 
     def __new__(cls, input_array, array=None, dataset=None):
         # Input array is an already formed ndarray instance
@@ -393,13 +503,15 @@ class VTKCompositeDataArray(object):
         if type(other) == VTKCompositeDataArray:
             for a1, a2 in itertools.izip(self._Arrays, other.Arrays):
                 if a1 is not NoneArray and a2 is not NoneArray:
-                    res.append(op(a1,a2))
+                    l = reshape_append_ones(a1, a2)
+                    res.append(op(l[0],l[1]))
                 else:
                     res.append(NoneArray)
         else:
             for a in self._Arrays:
                 if a is not NoneArray:
-                    res.append(op(a, other))
+                    l = reshape_append_ones(a, other)
+                    res.append(op(l[0], l[1]))
                 else:
                     res.append(NoneArray)
         return VTKCompositeDataArray(res, dataset=self.DataSet)
@@ -412,13 +524,15 @@ class VTKCompositeDataArray(object):
         if type(other) == VTKCompositeDataArray:
             for a1, a2 in itertools.izip(self._Arrays, other.Arrays):
                 if a1 is not NoneArray and a2 is notNoneArray:
-                    res.append(op(a2,a1))
+                    l = reshape_append_ones(a2,a1)
+                    res.append(op(l[0],l[1]))
                 else:
                     res.append(NoneArray)
         else:
             for a in self._Arrays:
                 if a is not NoneArray:
-                    res.append(op(other, a))
+                    l = reshape_append_ones(other, a)
+                    res.append(op(l[0], l[1]))
                 else:
                     res.append(NoneArray)
         return VTKCompositeDataArray(res, dataset=self.DataSet)
@@ -443,6 +557,8 @@ class DataSetAttributes(VTKObjectWrapper):
 
     def GetArray(self, idx):
         "Given an index or name, returns a VTKArray."
+        if isinstance(idx, int) and idx >= self.VTKObject.GetNumberOfArrays():
+            raise IndexError, "array index out of range"
         vtkarray = self.VTKObject.GetArray(idx)
         if not vtkarray:
             vtkarray = self.VTKObject.GetAbstractArray(idx)
@@ -819,15 +935,22 @@ class PointSet(DataSet):
         return vtkDataArrayToVTKArray(
             self.VTKObject.GetPoints().GetData(), self)
 
-    Points = property(GetPoints, None, None, "This property returns the point coordinates of dataset.")
+    def SetPoints(self, pts):
+        """Given a VTKArray instance, sets the points of the dataset."""
+        from vtk.vtkCommonCore import vtkPoints
+        pts = numpyTovtkDataArray(pts)
+        p = vtkPoints()
+        p.SetData(pts)
+        self.VTKObject.SetPoints(p)
+
+    Points = property(GetPoints, SetPoints, None, "This property returns the point coordinates of dataset.")
 
 class PolyData(PointSet):
     """This is a python friendly wrapper of a vtkPolyData that defines
     a few useful properties."""
 
     def GetPolygons(self):
-        """Returns the points as a VTKArray instance. Returns None if the
-        dataset has implicit points."""
+        """Returns the polys as a VTKArray instance."""
         if not self.VTKObject.GetPolys():
             return None
         return vtkDataArrayToVTKArray(
@@ -835,10 +958,53 @@ class PolyData(PointSet):
 
     Polygons = property(GetPolygons, None, None, "This property returns the connectivity of polygons.")
 
+class UnstructuredGrid(PointSet):
+    """This is a python friendly wrapper of a vtkUnstructuredGrid that defines
+    a few useful properties."""
+
+    def GetCellTypes(self):
+        """Returns the cell types as a VTKArray instance."""
+        if not self.VTKObject.GetCellTypesArray():
+            return None
+        return vtkDataArrayToVTKArray(
+            self.VTKObject.GetCellTypesArray(), self)
+
+    def GetCellLocations(self):
+        """Returns the cell locations as a VTKArray instance."""
+        if not self.VTKObject.GetCellLocationsArray():
+            return None
+        return vtkDataArrayToVTKArray(
+            self.VTKObject.GetCellLocationsArray(), self)
+
+    def GetCells(self):
+        """Returns the cells as a VTKArray instance."""
+        if not self.VTKObject.GetCells():
+            return None
+        return vtkDataArrayToVTKArray(
+            self.VTKObject.GetCells().GetData(), self)
+
+    def SetCells(self, cellTypes, cellLocations, cells):
+        """Given cellTypes, cellLocations, cells as VTKArrays,
+        populates the unstructured grid data structures."""
+        from vtk import VTK_ID_TYPE
+        from vtk.vtkCommonDataModel import vtkCellArray
+        cellTypes = numpyTovtkDataArray(cellTypes)
+        cellLocations = numpyTovtkDataArray(cellLocations, array_type=VTK_ID_TYPE)
+        cells = numpyTovtkDataArray(cells, array_type=VTK_ID_TYPE)
+        ca = vtkCellArray()
+        ca.SetCells(cellTypes.GetNumberOfTuples(), cells)
+        self.VTKObject.SetCells(cellTypes, cellLocations, ca)
+
+    CellTypes = property(GetCellTypes, None, None, "This property returns the types of cells.")
+    CellLocations = property(GetCellLocations, None, None, "This property returns the locations of cells.")
+    Cells = property(GetCells, None, None, "This property returns the connectivity of cells.")
+
 def WrapDataObject(ds):
     """Returns a Numpy friendly wrapper of a vtkDataObject."""
     if ds.IsA("vtkPolyData"):
         return PolyData(ds)
+    elif ds.IsA("vtkUnstructuredGrid"):
+        return UnstructuredGrid(ds)
     elif ds.IsA("vtkPointSet"):
         return PointSet(ds)
     elif ds.IsA("vtkDataSet"):

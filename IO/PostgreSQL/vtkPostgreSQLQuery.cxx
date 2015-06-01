@@ -606,11 +606,8 @@ void
 vtkPostgreSQLQuery::DeleteQueryResults()
 {
   this->Active = false;
-  if (this->QueryInternals)
-    {
-    delete this->QueryInternals;
-    this->QueryInternals = NULL;
-    }
+  delete this->QueryInternals;
+  this->QueryInternals = NULL;
 }
 
 // ----------------------------------------------------------------------
@@ -627,9 +624,9 @@ vtkVariant ConvertStringToBoolean(bool, const char *rawData)
     case 'y':
     case '1':
     case 1:
-    {
-    return vtkVariant(true);
-    }; break;
+      {
+      return vtkVariant(true);
+      }
 
     case 'F':
     case 'f':
@@ -637,17 +634,17 @@ vtkVariant ConvertStringToBoolean(bool, const char *rawData)
     case 'n':
     case '0':
     case 0:
-    {
-    return vtkVariant(false);
-    }; break;
+      {
+      return vtkVariant(false);
+      }
 
     default:
-    {
-    vtkGenericWarningMacro(<<"Unable to convert raw data to boolean.  Data length is "
-                           << strlen(rawData) << " and string is '"
-                           << rawData << "'");
-    return vtkVariant();
-    }; break;
+      {
+      vtkGenericWarningMacro(<<"Unable to convert raw data to boolean.  Data length is "
+                             << strlen(rawData) << " and string is '"
+                             << rawData << "'");
+      return vtkVariant();
+      }
     }
 }
 

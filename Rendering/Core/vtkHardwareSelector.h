@@ -55,8 +55,8 @@
 // .SECTION See Also
 // vtkIdentColoredPainter
 
-#ifndef __vtkHardwareSelector_h
-#define __vtkHardwareSelector_h
+#ifndef vtkHardwareSelector_h
+#define vtkHardwareSelector_h
 
 #include "vtkRenderingCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -325,7 +325,7 @@ protected:
   virtual void BeginSelection();
   virtual void EndSelection();
 
-  void SavePixelBuffer(int passNo);
+  virtual void SavePixelBuffer(int passNo);
   void BuildPropHitList(unsigned char* rgbData);
 
   // Description:

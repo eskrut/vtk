@@ -1,9 +1,7 @@
 vtk_module(vtkRenderingVolumeAMR
-  GROUPS
-    Rendering
   DEPENDS
     vtkParallelCore
-    vtkRenderingVolume
+    vtkRenderingVolume${VTK_RENDERING_BACKEND}
     vtkFiltersAMR
   KIT
     vtkParallel

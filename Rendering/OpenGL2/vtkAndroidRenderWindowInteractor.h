@@ -23,8 +23,8 @@
 // messages into the event bindings by setting InstallMessageProc to false.
 // This provides a minimal "Mapped" mode of interaction
 //
-#ifndef __vtkAndroidRenderWindowInteractor_h
-#define __vtkAndroidRenderWindowInteractor_h
+#ifndef vtkAndroidRenderWindowInteractor_h
+#define vtkAndroidRenderWindowInteractor_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkRenderWindowInteractor.h"
@@ -55,12 +55,6 @@ public:
   // when their data is not displayed.
   virtual void Enable();
   virtual void Disable();
-
-  // Description:
-  // This will start up the event loop and never return. If you
-  // call this method it will loop processing events until the
-  // application is exited.
-  virtual void Start();
 
   // Description:
   // Android specific application terminate, calls ClassExitMethod then
@@ -113,7 +107,6 @@ protected:
 
   bool Done;  // is the event loop done running
 
-  //BTX
   // Description:
   // Class variables so an exit method can be defined for this class
   // (used to set different exit methods for various language bindings,
@@ -121,13 +114,18 @@ protected:
   static void (*ClassExitMethod)(void *);
   static void (*ClassExitMethodArgDelete)(void *);
   static void *ClassExitMethodArg;
-  //ETX
 
   // Description:
   // Win32-specific internal timer methods. See the superclass for detailed
   // documentation.
   virtual int InternalCreateTimer(int timerId, int timerType, unsigned long duration);
   virtual int InternalDestroyTimer(int platformTimerId);
+
+  // Description:
+  // This will start up the event loop and never return. If you
+  // call this method it will loop processing events until the
+  // application is exited.
+  virtual void StartEventLoop();
 
 private:
   vtkAndroidRenderWindowInteractor(const vtkAndroidRenderWindowInteractor&);  // Not implemented.

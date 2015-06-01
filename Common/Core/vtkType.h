@@ -12,8 +12,8 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkType_h
-#define __vtkType_h
+#ifndef vtkType_h
+#define vtkType_h
 
 #include "vtkConfigure.h"
 
@@ -147,10 +147,22 @@
 # define VTK_UNSIGNED_LONG_LONG_MAX VTK_TYPE_CAST(unsigned long long, ~0ull)
 #endif
 #if defined(VTK_SIZEOF___INT64)
-# define VTK___INT64_MIN            VTK_TYPE_CAST(__int64, ~(~0ui64 >> 1))
-# define VTK___INT64_MAX            VTK_TYPE_CAST(__int64, ~0ui64 >> 1)
-# define VTK_UNSIGNED___INT64_MIN   VTK_TYPE_CAST(unsigned __int64, 0ui64)
-# define VTK_UNSIGNED___INT64_MAX   VTK_TYPE_CAST(unsigned __int64, ~0ui64)
+# if defined(VTK_TYPE_SAME_LONG_AND___INT64)
+#  define VTK___INT64_MIN           VTK_TYPE_CAST(__int64, ~(~0ul >> 1))
+#  define VTK___INT64_MAX           VTK_TYPE_CAST(__int64, ~0ul >> 1)
+#  define VTK_UNSIGNED___INT64_MIN  VTK_TYPE_CAST(unsigned __int64, 0ul)
+#  define VTK_UNSIGNED___INT64_MAX  VTK_TYPE_CAST(unsigned __int64, ~0ul)
+# elif defined(VTK_TYPE_SAME_LONG_LONG_AND___INT64)
+#  define VTK___INT64_MIN           VTK_TYPE_CAST(__int64, ~(~0ull >> 1))
+#  define VTK___INT64_MAX           VTK_TYPE_CAST(__int64, ~0ull >> 1)
+#  define VTK_UNSIGNED___INT64_MIN  VTK_TYPE_CAST(unsigned __int64, 0ull)
+#  define VTK_UNSIGNED___INT64_MAX  VTK_TYPE_CAST(unsigned __int64, ~0ull)
+# else
+#  define VTK___INT64_MIN           VTK_TYPE_CAST(__int64, ~(~0ui64 >> 1))
+#  define VTK___INT64_MAX           VTK_TYPE_CAST(__int64, ~0ui64 >> 1)
+#  define VTK_UNSIGNED___INT64_MIN  VTK_TYPE_CAST(unsigned __int64, 0ui64)
+#  define VTK_UNSIGNED___INT64_MAX  VTK_TYPE_CAST(unsigned __int64, ~0ui64)
+# endif
 #endif
 
 /* Define compatibility names for these constants.  */
@@ -247,16 +259,16 @@ typedef double vtkTypeFloat64;
 /* Choose an implementation for vtkIdType.  */
 #define VTK_HAS_ID_TYPE
 #ifdef VTK_USE_64BIT_IDS
-# if defined(VTK_SIZEOF_LONG) && VTK_SIZEOF_LONG == 8 && 0
-typedef long vtkIdType;
-#  define VTK_SIZEOF_ID_TYPE VTK_SIZEOF_LONG
-#  define VTK_ID_MIN VTK_LONG_MIN
-#  define VTK_ID_MAX VTK_LONG_MAX
-# elif defined(VTK_TYPE_USE_LONG_LONG) && VTK_SIZEOF_LONG_LONG == 8
+# if defined(VTK_TYPE_USE_LONG_LONG) && VTK_SIZEOF_LONG_LONG == 8
 typedef long long vtkIdType;
 #  define VTK_SIZEOF_ID_TYPE VTK_SIZEOF_LONG_LONG
 #  define VTK_ID_MIN VTK_LONG_LONG_MIN
 #  define VTK_ID_MAX VTK_LONG_LONG_MAX
+# elif defined(VTK_SIZEOF_LONG) && VTK_SIZEOF_LONG == 8
+typedef long vtkIdType;
+#  define VTK_SIZEOF_ID_TYPE VTK_SIZEOF_LONG
+#  define VTK_ID_MIN VTK_LONG_MIN
+#  define VTK_ID_MAX VTK_LONG_MAX
 # elif defined(VTK_TYPE_USE___INT64) && VTK_SIZEOF___INT64 == 8
 typedef __int64 vtkIdType;
 #  define VTK_SIZEOF_ID_TYPE VTK_SIZEOF___INT64

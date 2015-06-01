@@ -155,9 +155,12 @@ void vtkAxis::SetPosition(int position)
 
 void vtkAxis::SetPoint1(const vtkVector2f &pos)
 {
-  this->Position1 = pos;
-  this->Resized = true;
-  this->Modified();
+  if (this->Position1 != pos)
+    {
+    this->Position1 = pos;
+    this->Resized = true;
+    this->Modified();
+    }
 }
 
 void vtkAxis::SetPoint1(float x, float y)
@@ -172,9 +175,12 @@ vtkVector2f vtkAxis::GetPosition1()
 
 void vtkAxis::SetPoint2(const vtkVector2f &pos)
 {
-  this->Position2 = pos;
-  this->Resized = true;
-  this->Modified();
+  if (this->Position2 != pos)
+    {
+    this->Position2 = pos;
+    this->Resized = true;
+    this->Modified();
+    }
 }
 
 void vtkAxis::SetPoint2(float x, float y)
@@ -1408,8 +1414,17 @@ double vtkAxis::CalculateNiceMinMax(double &min, double &max)
     tickPixelSpacing = 45;
     }
 
-  double niceTickSpacing =
-    vtkAxis::NiceMinMax(min, max, pixelRange, tickPixelSpacing);
+  double niceTickSpacing = 0.0;
+  if (max < min)
+    {
+    niceTickSpacing =
+      vtkAxis::NiceMinMax(max, min, pixelRange, tickPixelSpacing);
+    }
+  else
+    {
+    niceTickSpacing =
+      vtkAxis::NiceMinMax(min, max, pixelRange, tickPixelSpacing);
+    }
 
   if (this->NumberOfTicks > 0)
     {

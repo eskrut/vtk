@@ -15,14 +15,21 @@
 // .SECTION Description
 // PolyDataMapper that uses a OpenGL to do the actual rendering.
 
-#ifndef __vtkOpenGLPolyDataMapper_h
-#define __vtkOpenGLPolyDataMapper_h
+#ifndef vtkOpenGLPolyDataMapper_h
+#define vtkOpenGLPolyDataMapper_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkPolyDataMapper.h"
 #include "vtkglVBOHelper.h" // used for ivars
 
 class vtkOpenGLTexture;
+class vtkMatrix4x4;
+class vtkMatrix3x3;
+class vtkTextureObject;
+namespace vtkgl
+{
+  class BufferObject;
+}
 
 class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLPolyDataMapper : public vtkPolyDataMapper
 {
@@ -69,6 +76,41 @@ public:
   // opaque geometry.
   virtual bool GetIsOpaque();
 
+  // used by RenderPiece and functions it calls to reduce
+  // calls to get the input and allow for rendering of
+  // other polydata (not the input)
+  vtkPolyData *CurrentInput;
+
+  // Description:
+  // By default, this painters uses the dataset's point and cell ids during
+  // rendering. However, one can override those by specifying cell and point
+  // data arrays to use instead. Currently, only vtkIdType array is supported.
+  // Set to NULL string (default) to use the point ids instead.
+  vtkSetStringMacro(PointIdArrayName);
+  vtkGetStringMacro(PointIdArrayName);
+  vtkSetStringMacro(CellIdArrayName);
+  vtkGetStringMacro(CellIdArrayName);
+
+  // Description:
+  // If the painter should override the process id using a data-array,
+  // set this variable to the name of the array to use. It must be a
+  // point-array.
+  vtkSetStringMacro(ProcessIdArrayName);
+  vtkGetStringMacro(ProcessIdArrayName);
+
+  // Description:
+  // Generally, vtkCompositePainter can render the composite id when iterating
+  // over composite datasets. However in some cases (as in AMR), the rendered
+  // structure may not correspond to the input data, in which case we need
+  // to provide a cell array that can be used to render in the composite id in
+  // selection passes. Set to NULL (default) to not override the composite id
+  // color set by vtkCompositePainter if any.
+  // The array *MUST* be a cell array and of type vtkUnsignedIntArray.
+  vtkSetStringMacro(CompositeIdArrayName);
+  vtkGetStringMacro(CompositeIdArrayName);
+
+
+
 protected:
   vtkOpenGLPolyDataMapper();
   ~vtkOpenGLPolyDataMapper();
@@ -97,6 +139,40 @@ protected:
                            vtkRenderer *ren, vtkActor *act);
 
   // Description:
+  // Create the basic shaders before replacement
+  virtual void GetShaderTemplate(std::string &VertexCode,
+                           std::string &fragmentCode,
+                           std::string &geometryCode,
+                           int lightComplexity,
+                           vtkRenderer *ren, vtkActor *act);
+
+  // Description:
+  // Perform string replacments on the shader templates
+  virtual void ReplaceShaderValues(std::string &VertexCode,
+                           std::string &fragmentCode,
+                           std::string &geometryCode,
+                           int lightComplexity,
+                           vtkRenderer *ren, vtkActor *act);
+
+  // Description:
+  // Perform string replacments on the shader templates, called from
+  // ReplaceShaderValues
+  virtual void ReplaceShaderColorMaterialValues(std::string &VertexCode,
+                           std::string &fragmentCode,
+                           std::string &geometryCode,
+                           int lightComplexity,
+                           vtkRenderer *ren, vtkActor *act);
+
+  // Description:
+  // Perform string replacments on the shader templates, called from
+  // ReplaceShaderValues
+  virtual void ReplaceShaderLightingValues(std::string &VertexCode,
+                           std::string &fragmentCode,
+                           std::string &geometryCode,
+                           int lightComplexity,
+                           vtkRenderer *ren, vtkActor *act);
+
+  // Description:
   // Set the shader parameteres related to the mapper/input data, called by UpdateShader
   virtual void SetMapperShaderParameters(vtkgl::CellBO &cellBO, vtkRenderer *ren, vtkActor *act);
 
@@ -113,8 +189,20 @@ protected:
   virtual void SetPropertyShaderParameters(vtkgl::CellBO &cellBO, vtkRenderer *ren, vtkActor *act);
 
   // Description:
-  // Update the VBO to contain point based values
-  virtual void UpdateVBO(vtkActor *act);
+  // Update the VBO/IBO to be current
+  virtual void UpdateBufferObjects(vtkRenderer *ren, vtkActor *act);
+
+  // Description:
+  // Does the VBO/IBO need to be rebuilt
+  virtual bool GetNeedToRebuildBufferObjects(vtkRenderer *ren, vtkActor *act);
+
+  // Description:
+  // Build the VBO/IBO, called by UpdateBufferObjects
+  virtual void BuildBufferObjects(vtkRenderer *ren, vtkActor *act);
+
+  // Description:
+  // Build the IBO, called by BuildBufferObjects
+  virtual void BuildIBO(vtkRenderer *ren, vtkActor *act);
 
   // The VBO and its layout.
   vtkgl::BufferObject VBO;
@@ -125,24 +213,80 @@ protected:
   vtkgl::CellBO Lines;
   vtkgl::CellBO Tris;
   vtkgl::CellBO TriStrips;
+  vtkgl::CellBO TrisEdges;
+  vtkgl::CellBO TriStripsEdges;
   vtkgl::CellBO *LastBoundBO;
+  bool DrawingEdges;
 
   // values we use to determine if we need to rebuild
   int LastLightComplexity;
   vtkTimeStamp LightComplexityChanged;
 
-  bool LastSelectionState;
+  int LastSelectionState;
   vtkTimeStamp SelectionStateChanged;
 
   int LastDepthPeeling;
   vtkTimeStamp DepthPeelingChanged;
 
   bool UsingScalarColoring;
-  vtkTimeStamp OpenGLUpdateTime; // When was the OpenGL updated?
+  vtkTimeStamp VBOBuildTime; // When was the OpenGL VBO updated?
   vtkOpenGLTexture* InternalColorTexture;
 
   int PopulateSelectionSettings;
-  int pickingAttributeIDOffset;
+  int PrimitiveIDOffset;
+
+  vtkMatrix4x4 *TempMatrix4;
+  vtkMatrix3x3 *TempMatrix3;
+
+  // this vector can be used while building
+  // the shader program to record specific variables
+  // that are being used by the program. This is
+  // useful later on when setting uniforms. At
+  // that point IsShaderVariableUsed can be called
+  // to see if the uniform should be set or not.
+  std::vector<std::string> ShaderVariablesUsed;
+
+  // used to see if the shader building code indicated that
+  // a specific variable is being used. Only some variables
+  // are currently populated.
+  bool IsShaderVariableUsed(const char *);
+
+  // if set to true, tcoords will be passed to the
+  // VBO even if the mapper knows of no texture maps
+  // normally tcoords are only added to the VBO if the
+  // mapper has indentified a texture map as well.
+  bool ForceTextureCoordinates;
+
+  void BuildCellTextures(
+    vtkRenderer *ren,
+    vtkActor *,
+    vtkCellArray *prims[4],
+    int representation);
+
+  void AppendCellTextures(
+    vtkRenderer *ren,
+    vtkActor *,
+    vtkCellArray *prims[4],
+    int representation,
+    std::vector<unsigned char> &colors,
+    std::vector<float> &normals,
+    vtkPolyData *pd);
+
+  bool HavePickScalars;
+  vtkTextureObject *CellScalarTexture;
+  vtkgl::BufferObject *CellScalarBuffer;
+  bool HaveCellScalars;
+  vtkTextureObject *CellNormalTexture;
+  vtkgl::BufferObject *CellNormalBuffer;
+  bool HaveCellNormals;
+
+  // aditional picking indirection
+  char* PointIdArrayName;
+  char* CellIdArrayName;
+  char* ProcessIdArrayName;
+  char* CompositeIdArrayName;
+
+  int TextureComponents;
 
 private:
   vtkOpenGLPolyDataMapper(const vtkOpenGLPolyDataMapper&); // Not implemented.

@@ -14,21 +14,83 @@
 =========================================================================*/
 #include "vtkGaussianSplatter.h"
 
+#include "vtkCompositeDataIterator.h"
+#include "vtkCompositeDataSet.h"
 #include "vtkDoubleArray.h"
 #include "vtkImageData.h"
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
+#include "vtkMultiBlockDataSet.h"
+#include "vtkNew.h"
 #include "vtkObjectFactory.h"
+#include "vtkSmartPointer.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkPointData.h"
+#include "vtkSMPTools.h"
 
+#include <algorithm>
 #include <math.h>
 
 vtkStandardNewMacro(vtkGaussianSplatter);
 
-// Construct object with dimensions=(50,50,50); automatic computation of
-// bounds; a splat radius of 0.1; an exponent factor of -5; and normal and
-// scalar warping turned on.
+//----------------------------------------------------------------------------
+// Algorithm and integration into vtkSMPTools
+class vtkGaussianSplatterAlgorithm
+{
+public:
+  vtkGaussianSplatter *Splatter;
+  double *Scalars;
+  vtkIdType Dims[3], SliceSize;
+  double Origin[3], Spacing[3], Radius2;
+
+  class Splat
+    {
+    public:
+      vtkGaussianSplatterAlgorithm *Algo;
+      vtkIdType XMin, XMax, YMin, YMax, ZMin, ZMax;
+      Splat(vtkGaussianSplatterAlgorithm *algo)
+        {this->Algo = algo;}
+      void SetBounds(int min[3], int max[3])
+        {
+          this->XMin = min[0]; this->XMax = max[0];
+          this->YMin = min[1]; this->YMax = max[1];
+          this->ZMin = min[2]; this->ZMax = max[2];
+        }
+      void  operator()(vtkIdType slice, vtkIdType end)
+        {
+        vtkIdType i, j, jOffset, kOffset, idx;
+        double cx[3], dist2;
+        for ( ; slice < end; ++slice )
+          {
+          // Loop over all sample points in volume within footprint and
+          // evaluate the splat
+          cx[2] = this->Algo->Origin[2] + this->Algo->Spacing[2]*slice;
+          kOffset = slice*this->Algo->SliceSize;
+          for (j=this->YMin; j<=this->YMax; j++)
+            {
+            cx[1] = this->Algo->Origin[1] + this->Algo->Spacing[1]*j;
+            jOffset = j*this->Algo->Dims[0];
+            for (i=this->XMin; i<=this->XMax; i++)
+              {
+              cx[0] = this->Algo->Origin[0] + this->Algo->Spacing[0]*i;
+              dist2 = this->Algo->Splatter->SamplePoint(cx);
+              if ( dist2 <= this->Algo->Radius2 )
+                {
+                idx = i + jOffset + kOffset;
+                this->Algo->Splatter->SetScalar(idx,dist2, this->Algo->Scalars+idx);
+                }//if within splat radius
+              }//i
+            }//j
+          }//k within splat footprint
+        }
+    };
+};
+
+
+//----------------------------------------------------------------------------
+// Create the VTK class proper.  Construct object with dimensions=(50,50,50);
+// automatic computation of bounds; a splat radius of 0.1; an exponent factor
+// of -5; and normal and scalar warping turned on.
 vtkGaussianSplatter::vtkGaussianSplatter()
 {
   this->SampleDimensions[0] = 50;
@@ -110,37 +172,63 @@ int vtkGaussianSplatter::RequestData(
 {
   // get the data object
   vtkInformation *outInfo = outputVector->GetInformationObject(0);
-  vtkImageData *output = vtkImageData::SafeDownCast(
-    outInfo->Get(vtkDataObject::DATA_OBJECT()));
+  vtkImageData *output = vtkImageData::GetData(outputVector,0);
 
   output->SetExtent(
     outInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT()));
   output->AllocateScalars(outInfo);
 
-  vtkIdType numPts, numNewPts, ptId, idx, i;
-  int j, k;
+  vtkIdType totalNumPts, numNewPts, ptId, i;
   int min[3], max[3];
   vtkPointData *pd;
   vtkDataArray *inNormals=NULL;
-  double loc[3], dist2, cx[3];
+  double loc[3];
   vtkDoubleArray *newScalars =
     vtkDoubleArray::SafeDownCast(output->GetPointData()->GetScalars());
   newScalars->SetName("SplatterValues");
 
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  vtkDataSet *input = vtkDataSet::SafeDownCast(
-    inInfo->Get(vtkDataObject::DATA_OBJECT()));
-  int sliceSize=this->SampleDimensions[0]*this->SampleDimensions[1];
+  vtkDataSet *inputDS = vtkDataSet::GetData(inInfo);
+  vtkCompositeDataSet *inputComposite = vtkCompositeDataSet::GetData(inInfo);
+  vtkNew< vtkMultiBlockDataSet > tempComposite;
+  if (inputComposite == NULL)
+    {
+    tempComposite->SetNumberOfBlocks(1);
+    tempComposite->SetBlock(0,inputDS);
+    inputComposite = tempComposite.GetPointer();
+    }
 
   vtkDebugMacro(<< "Splatting data");
 
   //  Make sure points are available
   //
-  if ( (numPts=input->GetNumberOfPoints()) < 1 )
+  totalNumPts = inputComposite->GetNumberOfPoints();
+  if (totalNumPts == 0)
     {
     vtkDebugMacro(<<"No points to splat!");
+    vtkWarningMacro(<<"No POINTS!!");
     return 1;
     }
+
+  vtkSmartPointer< vtkCompositeDataIterator > dataItr =
+    vtkSmartPointer< vtkCompositeDataIterator >::Take(
+      inputComposite->NewIterator());
+
+  //decide which array to splat, if any
+  dataItr->InitTraversal();
+  vtkDataSet* ds = NULL;
+  while (ds == NULL && ! dataItr->IsDoneWithTraversal())
+    {
+    ds = vtkDataSet::SafeDownCast(dataItr->GetCurrentDataObject());
+    }
+  if (ds == NULL)
+    {
+    vtkDebugMacro(<<"The input is an empty block structure");
+    return 1;
+    }
+
+  output->SetDimensions(this->GetSampleDimensions());
+  this->ComputeModelBounds(inputComposite,output, outInfo);
 
   //  Compute the radius of influence of the points.  If an
   //  automatically generated bounding box has been generated, increase
@@ -150,27 +238,19 @@ int vtkGaussianSplatter::RequestData(
 
   numNewPts = this->SampleDimensions[0] * this->SampleDimensions[1] *
               this->SampleDimensions[2];
-  for (i=0; i<numNewPts; i++)
-    {
-    newScalars->SetTuple(i,&this->NullValue);
-    }
+  double *scalars = newScalars->WritePointer(0,numNewPts);
+  std::fill_n(scalars,numNewPts,this->NullValue);
   this->Visited = new char[numNewPts];
-  for (i=0; i < numNewPts; i++)
-    {
-    this->Visited[i] = 0;
-    }
+  std::fill_n(this->Visited,numNewPts,0);
 
-  output->SetDimensions(this->GetSampleDimensions());
-  this->ComputeModelBounds(input,output, outInfo);
-
-  //decide which array to splat, if any
-  pd = input->GetPointData();
+  pd = ds->GetPointData();
+  bool useScalars = false;
   int association = vtkDataObject::FIELD_ASSOCIATION_POINTS;
-  vtkDataArray *inScalars=this->GetInputArrayToProcess
-    (0, inputVector, association);
+  vtkDataArray *inScalars = this->GetInputArrayToProcess(0,ds,association);
   if (!inScalars)
     {
     inScalars = pd->GetScalars();
+    useScalars = true;
     }
 
   //  Set up function pointers to sample functions
@@ -195,72 +275,111 @@ int vtkGaussianSplatter::RequestData(
                    //but this makes purify happy.
     }
 
-  // Traverse all points - splatting each into the volume.
-  // For each point, determine which voxel it is in.  Then determine
-  // the subvolume that the splat is contained in, and process that.
-  //
-  int abortExecute=0;
-  vtkIdType progressInterval = numPts/20 + 1;
-  for (ptId=0; ptId < numPts && !abortExecute; ptId++)
+  // Prepare for parallel splatting
+  vtkGaussianSplatterAlgorithm algo;
+  algo.Splatter = this;
+  algo.Scalars = scalars;
+  algo.Radius2 = this->Radius2;
+  algo.SliceSize = this->SampleDimensions[0]*this->SampleDimensions[1];
+  for (i=0; i<3; ++i)
     {
-    if ( ! (ptId % progressInterval) )
-      {
-      vtkDebugMacro(<<"Inserting point #" << ptId);
-      this->UpdateProgress (static_cast<double>(ptId)/numPts);
-      abortExecute = this->GetAbortExecute();
-      }
+    algo.Dims[i] = this->SampleDimensions[i];
+    algo.Origin[i] = this->Origin[i];
+    algo.Spacing[i] = this->Spacing[i];
+    }
+  vtkGaussianSplatterAlgorithm::Splat splat(&algo);
 
-    this->P = input->GetPoint(ptId);
-    if ( inNormals != NULL )
+  // Process all input datasets
+  for (dataItr->InitTraversal(); !dataItr->IsDoneWithTraversal(); dataItr->GoToNextItem())
+    {
+    vtkDataSet* input = vtkDataSet::SafeDownCast(dataItr->GetCurrentDataObject());
+    if (!input)
       {
-      this->N = inNormals->GetTuple(ptId);
+      continue;
       }
-    if ( inScalars != NULL )
+    vtkDataArray* myScalars = NULL;
+    if (inScalars != NULL)
       {
-      this->S = inScalars->GetComponent(ptId,0);
-      }
-
-    // Determine the voxel that the point is in
-    for (i=0; i<3; i++)
-      {
-      loc[i] = (this->P[i] - this->Origin[i]) / this->Spacing[i];
-      }
-
-    // Determine splat footprint
-    for (i=0; i<3; i++)
-      {
-      min[i] = static_cast<int>(floor(static_cast<double>(loc[i])-this->SplatDistance[i]));
-      max[i] = static_cast<int>(ceil(static_cast<double>(loc[i])+this->SplatDistance[i]));
-      if ( min[i] < 0 )
+      if (useScalars)
         {
-        min[i] = 0;
+        myScalars = input->GetPointData()->GetScalars();
         }
-      if ( max[i] >= this->SampleDimensions[i] )
+      else
         {
-        max[i] = this->SampleDimensions[i] - 1;
+        myScalars = this->GetInputArrayToProcess(0,input,association);
         }
       }
-
-    // Loop over all sample points in volume within footprint and
-    // evaluate the splat
-    for (k=min[2]; k<=max[2]; k++)
+    if (inScalars != NULL && myScalars == NULL)
       {
-      cx[2] = this->Origin[2] + this->Spacing[2]*k;
-      for (j=min[1]; j<=max[1]; j++)
+      vtkWarningMacro(<<"Piece does not have selected scalars array");
+      continue;
+      }
+    vtkDataArray* myNormals = NULL;
+    if (inNormals != NULL)
+      {
+      myNormals = input->GetPointData()->GetNormals();
+      }
+    if (this->NormalWarping && inNormals != NULL && myNormals == NULL)
+      {
+      vtkWarningMacro(<<"Piece does not have required normals array");
+      continue;
+      }
+    vtkIdType numPts = input->GetNumberOfPoints();
+
+    // Traverse all points - splatting each into the volume.
+    // For each point, determine which voxel it is in.  Then determine
+    // the subvolume that the splat is contained in, and process that.
+    //
+    int abortExecute=0;
+    vtkIdType progressInterval = numPts/20 + 1;
+    for (ptId=0; ptId < numPts && !abortExecute; ptId++)
+      {
+      if ( ! (ptId % progressInterval) )
         {
-        cx[1] = this->Origin[1] + this->Spacing[1]*j;
-        for (i=min[0]; i<=max[0]; i++)
+        vtkDebugMacro(<<"Inserting point #" << ptId);
+        this->UpdateProgress (static_cast<double>(ptId)/numPts);
+        abortExecute = this->GetAbortExecute();
+        }
+
+      this->P = input->GetPoint(ptId);
+      if ( myNormals != NULL )
+        {
+        this->N = myNormals->GetTuple(ptId);
+        }
+      if ( myScalars != NULL )
+        {
+        this->S = myScalars->GetComponent(ptId,0);
+        }
+
+      // Determine the voxel that the point is in
+      for (i=0; i<3; i++)
+        {
+        loc[i] = (this->P[i] - this->Origin[i]) / this->Spacing[i];
+        }
+
+      // Determine splat footprint
+      for (i=0; i<3; i++)
+        {
+        min[i] = static_cast<int>(floor(static_cast<double>(
+                                          loc[i])-this->SplatDistance[i]));
+        max[i] = static_cast<int>(ceil(static_cast<double>(
+                                         loc[i])+this->SplatDistance[i]));
+        if ( min[i] < 0 )
           {
-          cx[0] = this->Origin[0] + this->Spacing[0]*i;
-          if ( (dist2=(this->*Sample)(cx)) <= this->Radius2 )
-            {
-            idx = i + j*this->SampleDimensions[0] + k*sliceSize;
-            this->SetScalar(idx,dist2, newScalars);
-            }//if within splat radius
+          min[i] = 0;
+          }
+        if ( max[i] >= this->SampleDimensions[i] )
+          {
+          max[i] = this->SampleDimensions[i] - 1;
           }
         }
-      }//within splat footprint
-    }//for all input points
+
+      // Parallel splat the point
+      splat.SetBounds(min,max);
+      vtkSMPTools::For(min[2],max[2]+1, splat);
+
+      }//for all input points
+    }//for all datasets
 
   // If capping is turned on, set the distances of the outside of the volume
   // to the CapValue.
@@ -270,13 +389,104 @@ int vtkGaussianSplatter::RequestData(
     this->Cap(newScalars);
     }
 
-  vtkDebugMacro(<< "Splatted " << input->GetNumberOfPoints() << " points");
+  vtkDebugMacro(<< "Splatted " << totalNumPts << " points");
 
   // Update self and release memeory
   //
   delete [] this->Visited;
 
   return 1;
+}
+
+//----------------------------------------------------------------------------
+void vtkGaussianSplatter::ComputeModelBounds(vtkCompositeDataSet *input,
+                                             vtkImageData *output,
+                                             vtkInformation *outInfo)
+{
+  double *bounds, maxDist;
+  double tempBounds[6] = { 1, -1, 1, -1 , 1, -1};
+  int i, adjustBounds=0;
+
+  // compute model bounds if not set previously
+  if ( this->ModelBounds[0] >= this->ModelBounds[1] ||
+       this->ModelBounds[2] >= this->ModelBounds[3] ||
+       this->ModelBounds[4] >= this->ModelBounds[5] )
+    {
+    adjustBounds = 1;
+    vtkSmartPointer< vtkCompositeDataIterator > itr =
+      vtkSmartPointer< vtkCompositeDataIterator >::Take(
+        input->NewIterator());
+    for (itr->InitTraversal(); ! itr->IsDoneWithTraversal(); itr->GoToNextItem())
+      {
+      vtkDataSet* ds = vtkDataSet::SafeDownCast(itr->GetCurrentDataObject());
+      if (ds)
+        {
+        if (tempBounds[0] > tempBounds[1])
+          {
+          ds->GetBounds(tempBounds);
+          }
+        else
+          {
+          double* dsBounds = ds->GetBounds();
+          for (int j = 0; j < 3; ++j)
+            {
+            tempBounds[2*j] = std::min(tempBounds[2*j],dsBounds[2*j]);
+            tempBounds[2*j+1] = std::max(tempBounds[2*j+1],dsBounds[2*j+1]);
+            }
+          }
+        }
+      }
+    bounds = tempBounds;
+    }
+  else
+    {
+    bounds = this->ModelBounds;
+    }
+
+  for (maxDist=0.0, i=0; i<3; i++)
+    {
+    if ( (bounds[2*i+1] - bounds[2*i]) > maxDist )
+      {
+      maxDist = bounds[2*i+1] - bounds[2*i];
+      }
+    }
+  maxDist *= this->Radius;
+  this->Radius2 = maxDist * maxDist;
+
+  // adjust bounds so model fits strictly inside (only if not set previously)
+  if ( adjustBounds )
+    {
+    for (i=0; i<3; i++)
+      {
+      this->ModelBounds[2*i] = bounds[2*i] - maxDist;
+      this->ModelBounds[2*i+1] = bounds[2*i+1] + maxDist;
+      }
+    }
+
+  // Set volume origin and data spacing
+  outInfo->Set(vtkDataObject::ORIGIN(),
+               this->ModelBounds[0],this->ModelBounds[2],
+               this->ModelBounds[4]);
+  memcpy(this->Origin,outInfo->Get(vtkDataObject::ORIGIN()), sizeof(double)*3);
+  output->SetOrigin(this->Origin);
+
+  for (i=0; i<3; i++)
+    {
+    this->Spacing[i] = (this->ModelBounds[2*i+1] - this->ModelBounds[2*i])
+      / (this->SampleDimensions[i] - 1);
+    if ( this->Spacing[i] <= 0.0 )
+      {
+      this->Spacing[i] = 1.0;
+      }
+    }
+  outInfo->Set(vtkDataObject::SPACING(),this->Spacing,3);
+  output->SetSpacing(this->Spacing);
+
+  // Determine the splat propagation distance...used later
+  for (i=0; i<3; i++)
+    {
+    this->SplatDistance[i] = maxDist / this->Spacing[i];
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -510,38 +720,6 @@ double vtkGaussianSplatter::EccentricGaussian (double cx[3])
 }
 
 //----------------------------------------------------------------------------
-void vtkGaussianSplatter::SetScalar(int idx, double dist2,
-                                    vtkDoubleArray *newScalars)
-{
-  double v = (this->*SampleFactor)(this->S) * exp(
-    static_cast<double>
-    (this->ExponentFactor*(dist2)/(this->Radius2)));
-
-  if ( ! this->Visited[idx] )
-    {
-    this->Visited[idx] = 1;
-    newScalars->SetTuple(idx,&v);
-    }
-  else
-    {
-    double s = newScalars->GetValue(idx);
-    switch (this->AccumulationMode)
-      {
-      case VTK_ACCUMULATION_MODE_MIN:
-        newScalars->SetTuple(idx,(s < v ? &s : &v));
-        break;
-      case VTK_ACCUMULATION_MODE_MAX:
-        newScalars->SetTuple(idx,(s > v ? &s : &v));
-        break;
-      case VTK_ACCUMULATION_MODE_SUM:
-        s += v;
-        newScalars->SetTuple(idx,&s);
-        break;
-      }
-    }//not first visit
-}
-
-//----------------------------------------------------------------------------
 const char *vtkGaussianSplatter::GetAccumulationModeAsString()
 {
   if ( this->AccumulationMode == VTK_ACCUMULATION_MODE_MIN )
@@ -601,5 +779,6 @@ int vtkGaussianSplatter::FillInputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
 {
   info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkDataSet");
+  info->Append(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkCompositeDataSet");
   return 1;
 }

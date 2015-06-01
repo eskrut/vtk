@@ -12,54 +12,58 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#include <algorithm>
+
 #include <cstring>
-#include <limits>
-#include <stdexcept>
+
+#include <algorithm>
 #include <iostream>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
+
+#include "vtkAbstractArray.h"
+#include "vtkCellArray.h"
+#include "vtkCellData.h"
+#include "vtkDataArray.h"
+#include "vtkDataObject.h"
+#include "vtkDataSet.h"
+#include "vtkDemandDrivenPipeline.h"
+#include "vtkFieldData.h"
+#include "vtkImageData.h"
+#include "vtkInformation.h"
+#include "vtkInformationVector.h"
+#include "vtkLookupTable.h"
+#include "vtkMPIController.h"
+#include "vtkMPI.h"
+#include "vtkObjectFactory.h"
+#include "vtkPointData.h"
+#include "vtkPoints.h"
+#include "vtkPolyData.h"
+#include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkUnstructuredGrid.h"
+
+#include "vtkADIOSUtilities.h"
 
 #include "ADIOSDefs.h"
 #include "ADIOSWriter.h"
 
 #include "vtkADIOSWriter.h"
-#include <vtkObjectFactory.h>
-#include <vtkInformation.h>
-#include <vtkInformationVector.h>
-#include <vtkDemandDrivenPipeline.h>
-#include <vtkStreamingDemandDrivenPipeline.h>
-#include <vtkMPIController.h>
-#include <vtkMPI.h>
-
-#include <vtkDataObject.h>
-#include <vtkAbstractArray.h>
-#include <vtkLookupTable.h>
-#include <vtkDataArray.h>
-#include <vtkCellArray.h>
-#include <vtkPoints.h>
-#include <vtkFieldData.h>
-#include <vtkCellData.h>
-#include <vtkPointData.h>
-#include <vtkDataSet.h>
-#include <vtkImageData.h>
-#include <vtkPolyData.h>
-#include <vtkUnstructuredGrid.h>
-
 
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkADIOSWriter);
 
 //----------------------------------------------------------------------------
 vtkADIOSWriter::vtkADIOSWriter()
-: FileName(NULL), TransportMethod(vtkADIOSWriter::POSIX),
-  TransportMethodArguments(NULL), Transform(vtkADIOSWriter::None),
-  WriteMode(vtkADIOSWriter::Always), CurrentStep(-1), Controller(NULL),
+: FileName(NULL),
+  TransportMethod(static_cast<int>(ADIOS::TransportMethod_POSIX)),
+  TransportMethodArguments(NULL),
+  Transform(static_cast<int>(ADIOS::Transform_NONE)),
+  CurrentStep(-1), Controller(NULL),
   Writer(NULL),
   NumberOfPieces(-1), RequestPiece(-1), NumberOfGhostLevels(-1),
   WriteAllTimeSteps(false), TimeSteps(), CurrentTimeStepIndex(-1)
 {
   std::memset(this->RequestExtent, 0, 6*sizeof(int));
-  std::memset(this->WholeExtent, 0, 6*sizeof(int));
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(0);
   this->SetController(vtkMultiProcessController::GetGlobalController());
@@ -68,10 +72,7 @@ vtkADIOSWriter::vtkADIOSWriter()
 //----------------------------------------------------------------------------
 vtkADIOSWriter::~vtkADIOSWriter()
 {
-  if(this->Writer)
-    {
-    delete this->Writer;
-    }
+  delete this->Writer;
   this->SetFileName(NULL);
   this->SetTransportMethodArguments(NULL);
   this->SetController(NULL);
@@ -81,7 +82,15 @@ vtkADIOSWriter::~vtkADIOSWriter()
 void vtkADIOSWriter::PrintSelf(std::ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
-  os << indent << "FileName: " << this->FileName << std::endl;
+  os << indent << "FileName: " << (this->FileName ? this->FileName : "(null)")
+     << std::endl;
+}
+
+//----------------------------------------------------------------------------
+const char* vtkADIOSWriter::GetDefaultFileExtension()
+{
+  static const char ext[] = "vta";
+  return ext;
 }
 
 //----------------------------------------------------------------------------
@@ -100,7 +109,7 @@ void vtkADIOSWriter::SetController(vtkMultiProcessController *controller)
     {
     vtkMPICommunicator *comm = static_cast<vtkMPICommunicator *>(
       this->Controller->GetCommunicator());
-    ADIOSWriter::SetCommunicator(*comm->GetMPIComm()->GetHandle());
+    ADIOS::Writer::SetCommunicator(*comm->GetMPIComm()->GetHandle());
 
     this->NumberOfPieces = this->Controller->GetNumberOfProcesses();
     this->RequestPiece = this->Controller->GetLocalProcessId();
@@ -110,18 +119,6 @@ void vtkADIOSWriter::SetController(vtkMultiProcessController *controller)
     this->NumberOfPieces = -1;
     this->RequestPiece = -1;
     }
-}
-
-//----------------------------------------------------------------------------
-void vtkADIOSWriter::OpenFile(void)
-{
-  this->Writer->Open(this->FileName, this->CurrentStep > 0);
-}
-
-//----------------------------------------------------------------------------
-void vtkADIOSWriter::CloseFile(void)
-{
-  this->Writer->Close();
 }
 
 //----------------------------------------------------------------------------
@@ -153,26 +150,6 @@ bool vtkADIOSWriter::DefineAndWrite(vtkDataObject *input)
       // Before any data can be writen, it's structure must be declared
       this->Define("", data);
 
-      if(this->WriteMode == vtkADIOSWriter::OnChange)
-        {
-        // Set up the index for independently array stepping
-        this->BlockStepIndex.clear();
-        this->BlockStepIndex.resize(this->BlockStepIndexIdMap.size());
-
-        std::vector<size_t> indexDims;
-        indexDims.push_back(this->BlockStepIndexIdMap.size());
-        this->Writer->DefineArray<int>("::BlockStepIndex", indexDims);
-
-        // Gather all the block step index id maps to Rank 0
-        std::string BlockStepIndexIdMapAttr = this->GatherBlockStepIdMap();
-
-        if(localProc == 0)
-          {
-          this->Writer->DefineAttribute<std::string>("::BlockStepIndexIdMap",
-            BlockStepIndexIdMapAttr);
-          }
-        }
-
       if(localProc == 0)
         {
         // Global time step is only used by Rank 0
@@ -184,87 +161,28 @@ bool vtkADIOSWriter::DefineAndWrite(vtkDataObject *input)
         }
       }
 
-    this->OpenFile();
-    if(localProc == 0 && this->CurrentTimeStepIndex >= 0)
+    if(localProc == 0)
       {
-      this->Writer->WriteScalar<double>("/TimeStamp",
-        this->TimeSteps[this->CurrentTimeStepIndex]);
+      if(this->CurrentTimeStepIndex >= 0)
+        {
+        this->Writer->WriteScalar<double>("/TimeStamp",
+          this->TimeSteps[this->CurrentTimeStepIndex]);
+        }
+      else
+        {
+        this->Writer->WriteScalar<double>("/TimeStamp", this->CurrentStep);
+        }
       }
 
-    std::memset(&*this->BlockStepIndex.begin(), 0xFF,
-      sizeof(vtkTypeInt64)*this->BlockStepIndex.size());
     this->Write("", data);
-
-    if(this->WriteMode == vtkADIOSWriter::OnChange)
-      {
-      this->Writer->WriteArray("::BlockStepIndex", &this->BlockStepIndex[0]);
-      }
-    this->CloseFile();
+    this->Writer->Commit(this->FileName, this->CurrentStep > 0);
     }
-  catch(const std::runtime_error &err)
+  catch(const ADIOS::WriteError &err)
     {
     vtkErrorMacro(<< err.what());
     return false;
     }
   return true;
-}
-
-//----------------------------------------------------------------------------
-std::string vtkADIOSWriter::GatherBlockStepIdMap(void)
-{
-  const int numProcs = this->Controller->GetNumberOfProcesses();
-  const int localProc = this->Controller->GetLocalProcessId();
-
-  // Encode into string containing:
-  // Block0_Id Var0_Id Var0_Name
-  // Block0_Id Var1_Id Var1_Name
-  // ...
-  // BlockN_Id VarM_Id VarM_Name
-  std::stringstream ss;
-  for(NameIdMap::const_iterator i = this->BlockStepIndexIdMap.begin();
-    i != this->BlockStepIndexIdMap.end(); ++i)
-    {
-    ss << localProc << ' ' << i->second << ' ' << i->first << '\n';
-    }
-  std::string sendBuf = ss.str();
-  vtkIdType sendBufLen = sendBuf.length();
-
-  // Gather the variable length buffer sizes
-  vtkIdType *recvLengths = localProc == 0 ? new vtkIdType[numProcs] : NULL;
-  this->Controller->Gather(&sendBufLen, recvLengths, 1, 0);
-
-  // Compute the recieving buffer sizes and offsets
-  vtkIdType fullLength = 0;
-  vtkIdType *recvOffsets = NULL;
-  char *recvBuffer = NULL;
-  if(localProc == 0)
-    {
-    recvOffsets = new vtkIdType[numProcs];
-    for(int p = 0; p < numProcs; ++p)
-      {
-      recvOffsets[p] = fullLength;
-      fullLength += recvLengths[p];
-      }
-    recvBuffer = new char[fullLength];
-    }
-
-  // Gather the index id maps from all processes
-  this->Controller->GatherV(sendBuf.c_str(), recvBuffer, sendBufLen,
-    recvLengths, recvOffsets, 0);
-
-  std::string recv;
-  if(localProc == 0)
-    {
-    // Strip the trailing \n to make null terminated and parse as an std::string
-    recvBuffer[fullLength-1] = '\0';
-    recv = recvBuffer;
-
-    // Cleanup
-    delete[] recvBuffer;
-    delete[] recvOffsets;
-    delete[] recvLengths;
-    }
-  return recv;
 }
 
 //----------------------------------------------------------------------------
@@ -311,33 +229,16 @@ int vtkADIOSWriter::ProcessRequest(vtkInformation* request,
   // sort of request.
   if(!this->Writer)
     {
-    this->Writer = new ADIOSWriter(
+    this->Writer = new ADIOS::Writer(
       static_cast<ADIOS::TransportMethod>(this->TransportMethod),
       this->TransportMethodArguments ? this->TransportMethodArguments : "");
-    }
-
-  // Now process the request
-
-  if(request->Has(vtkDemandDrivenPipeline::REQUEST_INFORMATION()))
-    {
-    return this->RequestInformation(request, input, output) ? 1 : 0;
-    }
-
-  if(request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()))
-    {
-    return this->RequestUpdateExtent(request, input, output) ? 1 : 0;
-    }
-
-  if(request->Has(vtkDemandDrivenPipeline::REQUEST_DATA()))
-    {
-    return this->RequestData(request, input, output) ? 1 : 0;
     }
 
   return this->Superclass::ProcessRequest(request, input, output);
 }
 
 //----------------------------------------------------------------------------
-bool vtkADIOSWriter::RequestInformation(vtkInformation *vtkNotUsed(req),
+int vtkADIOSWriter::RequestInformation(vtkInformation *vtkNotUsed(req),
   vtkInformationVector **input, vtkInformationVector *vtkNotUsed(output))
 {
   vtkInformation *inInfo = input[0]->GetInformationObject(0);
@@ -354,11 +255,11 @@ bool vtkADIOSWriter::RequestInformation(vtkInformation *vtkNotUsed(req),
     this->CurrentTimeStepIndex = 0;
     }
 
-  return true;
+  return 1;
 }
 
 //----------------------------------------------------------------------------
-bool vtkADIOSWriter::RequestUpdateExtent(vtkInformation *vtkNotUsed(req),
+int vtkADIOSWriter::RequestUpdateExtent(vtkInformation *vtkNotUsed(req),
   vtkInformationVector **input, vtkInformationVector *vtkNotUsed(output))
 {
   vtkInformation* inInfo = input[0]->GetInformationObject(0);
@@ -373,11 +274,11 @@ bool vtkADIOSWriter::RequestUpdateExtent(vtkInformation *vtkNotUsed(req),
     inInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP(),
       this->TimeSteps[this->CurrentTimeStepIndex]);
     }
-  return true;
+  return 1;
 }
 
 //----------------------------------------------------------------------------
-bool vtkADIOSWriter::RequestData(vtkInformation *req,
+int vtkADIOSWriter::RequestData(vtkInformation *req,
   vtkInformationVector **vtkNotUsed(input),
   vtkInformationVector *vtkNotUsed(output))
 {
@@ -385,8 +286,8 @@ bool vtkADIOSWriter::RequestData(vtkInformation *req,
 
   // Make sure the time step is one we know about
     {
-    vtkDataObject* input = this->GetInputDataObject(0, 0);
-    vtkInformation *inDataInfo = input->GetInformation();
+    vtkDataObject* inDataObject = this->GetInputDataObject(0, 0);
+    vtkInformation *inDataInfo = inDataObject->GetInformation();
     if(inDataInfo->Has(vtkDataObject::DATA_TIME_STEP()))
       {
       double ts = inDataInfo->Get(vtkDataObject::DATA_TIME_STEP());
@@ -414,7 +315,7 @@ bool vtkADIOSWriter::RequestData(vtkInformation *req,
 
   if(!this->WriteInternal())
     {
-    return false;
+    return 0;
     }
 
   if(this->CurrentTimeStepIndex >= 0)
@@ -428,5 +329,357 @@ bool vtkADIOSWriter::RequestData(vtkInformation *req,
       }
     }
 
-  return true;
+  return 1;
+}
+
+//----------------------------------------------------------------------------
+
+void vtkADIOSWriter::Define(const std::string& path, const vtkAbstractArray* v)
+{
+  vtkAbstractArray* valueTmp = const_cast<vtkAbstractArray*>(v);
+
+  // String arrays not currently supported
+  if(valueTmp->GetDataType() == VTK_STRING)
+    {
+    vtkWarningMacro(<< "Skipping string array " << path);
+    return;
+    }
+
+
+  this->Writer->DefineScalar<size_t>(path+"#NC");
+  this->Writer->DefineScalar<size_t>(path+"#NT");
+
+  std::vector<ADIOS::ArrayDim> dims;
+  dims.push_back(ADIOS::ArrayDim(path+"#NC"));
+  dims.push_back(ADIOS::ArrayDim(path+"#NT"));
+
+  this->Writer->DefineLocalArray(path,
+    ADIOS::Type::VTKToADIOS(valueTmp->GetDataType()), dims,
+    static_cast<ADIOS::Transform>(this->Transform));
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path, const vtkDataArray* v)
+{
+  vtkDataArray* valueTmp = const_cast<vtkDataArray*>(v);
+
+  vtkLookupTable *lut = valueTmp->GetLookupTable();
+  if(lut)
+    {
+/*
+    this->Define(path+"/LookupTable", static_cast<vtkAbstractArray*>(lut->GetTable()));
+    this->Define(path+"/Values", static_cast<vtkAbstractArray*>(valueTmp));
+*/
+    }
+  else
+    {
+    this->Define(path, static_cast<vtkAbstractArray*>(valueTmp));
+    }
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path, const vtkCellArray* v)
+{
+  this->Writer->DefineScalar<vtkIdType>(path+"/NumberOfCells");
+
+  vtkCellArray *valueTmp = const_cast<vtkCellArray*>(v);
+  this->Define(path+"/IndexArray", valueTmp->GetData());
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path, const vtkFieldData* v)
+{
+  vtkFieldData* valueTmp = const_cast<vtkFieldData*>(v);
+  for(int i = 0; i < valueTmp->GetNumberOfArrays(); ++i)
+    {
+    vtkDataArray *da = valueTmp->GetArray(i);
+    vtkAbstractArray *aa = da ? da : valueTmp->GetAbstractArray(i);
+
+    std::string name = aa->GetName();
+    if(name.empty()) // skip unnamed arrays
+      {
+      vtkWarningMacro(<< "Skipping unnamed array in " << path);
+      continue;
+      }
+    this->Define(path+"/"+name, da ? da : aa);
+    }
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path, const vtkDataSet* v)
+{
+  vtkDataSet* valueTmp = const_cast<vtkDataSet*>(v);
+
+  this->Define(path+"/FieldData", valueTmp->GetFieldData());
+  this->Define(path+"/CellData", valueTmp->GetCellData());
+  this->Define(path+"/PointData", valueTmp->GetPointData());
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path, const vtkImageData* v)
+{
+  this->Define(path+"/DataSet", static_cast<const vtkDataSet*>(v));
+
+  this->Writer->DefineScalar<vtkTypeUInt8>(path+"/DataObjectType");
+  this->Writer->DefineScalar<double>(path+"/OriginX");
+  this->Writer->DefineScalar<double>(path+"/OriginY");
+  this->Writer->DefineScalar<double>(path+"/OriginZ");
+  this->Writer->DefineScalar<double>(path+"/SpacingX");
+  this->Writer->DefineScalar<double>(path+"/SpacingY");
+  this->Writer->DefineScalar<double>(path+"/SpacingZ");
+  this->Writer->DefineScalar<int>(path+"/ExtentXMin");
+  this->Writer->DefineScalar<int>(path+"/ExtentXMax");
+  this->Writer->DefineScalar<int>(path+"/ExtentYMin");
+  this->Writer->DefineScalar<int>(path+"/ExtentYMax");
+  this->Writer->DefineScalar<int>(path+"/ExtentZMin");
+  this->Writer->DefineScalar<int>(path+"/ExtentZMax");
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path, const vtkPolyData* v)
+{
+  this->Define(path+"/DataSet", static_cast<const vtkDataSet*>(v));
+
+  vtkPolyData *valueTmp = const_cast<vtkPolyData*>(v);
+  this->Writer->DefineScalar<vtkTypeUInt8>(path+"/DataObjectType");
+
+  vtkPoints *p;
+  if((p = valueTmp->GetPoints()))
+    {
+    this->Define(path+"/Points", p->GetData());
+    }
+
+  this->Define(path+"/Verticies", valueTmp->GetVerts());
+  this->Define(path+"/Lines", valueTmp->GetLines());
+  this->Define(path+"/Polygons", valueTmp->GetPolys());
+  this->Define(path+"/Strips", valueTmp->GetStrips());
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Define(const std::string& path,
+  const vtkUnstructuredGrid* v)
+{
+  this->Define(path+"/DataSet", static_cast<const vtkDataSet*>(v));
+
+  vtkUnstructuredGrid *valueTmp = const_cast<vtkUnstructuredGrid*>(v);
+  this->Writer->DefineScalar<vtkTypeUInt8>(path+"/DataObjectType");
+
+  vtkPoints *p;
+  if((p = valueTmp->GetPoints()))
+    {
+    this->Define(path+"/Points", p->GetData());
+    }
+
+  vtkUnsignedCharArray *cta = valueTmp->GetCellTypesArray();
+  vtkIdTypeArray *cla = valueTmp->GetCellLocationsArray();
+  vtkCellArray *ca = valueTmp->GetCells();
+  if(cta && cla && ca)
+    {
+    this->Define(path+"/CellTypes", cta);
+    this->Define(path+"/CellLocations", cla);
+    this->Define(path+"/Cells", ca);
+    }
+}
+
+//----------------------------------------------------------------------------
+bool vtkADIOSWriter::UpdateMTimeTable(const std::string path,
+  const vtkObject* value)
+{
+  unsigned long &mtimeCurrent = this->LastUpdated[path];
+  unsigned long mtimeNew = const_cast<vtkObject*>(value)->GetMTime();
+  unsigned long mtimePrev = mtimeCurrent;
+
+  mtimeCurrent = mtimeNew;
+  return mtimeNew != mtimePrev;
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkAbstractArray* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  vtkAbstractArray* valueTmp = const_cast<vtkAbstractArray*>(v);
+
+  // String arrays not currently supported
+  if(valueTmp->GetDataType() == VTK_STRING)
+    {
+    return;
+    }
+
+  size_t nc = valueTmp->GetNumberOfComponents();
+  size_t nt = valueTmp->GetNumberOfTuples();
+
+  this->Writer->WriteScalar<size_t>(path+"#NC", nc);
+  this->Writer->WriteScalar<size_t>(path+"#NT", nt);
+  this->Writer->WriteArray(path, valueTmp->GetVoidPointer(0));
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkDataArray* v)
+{
+  vtkDataArray* valueTmp = const_cast<vtkDataArray*>(v);
+  vtkLookupTable *lut = valueTmp->GetLookupTable();
+
+  if(lut)
+    {
+    // Only check the mtime here if a LUT is present.  Otherwise it will be
+    // handled apropriately by the abstract array writer
+    if(!this->UpdateMTimeTable(path, v))
+      {
+      return;
+      }
+
+    this->Write(path+"/LookupTable", static_cast<vtkAbstractArray*>(lut->GetTable()));
+    this->Write(path+"/Values", static_cast<vtkAbstractArray*>(valueTmp));
+    }
+  else
+    {
+    this->Write(path, static_cast<vtkAbstractArray*>(valueTmp));
+    }
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkCellArray* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  vtkCellArray* valueTmp = const_cast<vtkCellArray*>(v);
+
+  this->Writer->WriteScalar<vtkIdType>(path+"/NumberOfCells",
+    valueTmp->GetNumberOfCells());
+  this->Write(path+"/IndexArray", valueTmp->GetData());
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkFieldData* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  vtkFieldData* valueTmp = const_cast<vtkFieldData*>(v);
+  for(int i = 0; i < valueTmp->GetNumberOfArrays(); ++i)
+    {
+    vtkDataArray *da = valueTmp->GetArray(i);
+    vtkAbstractArray *aa = da ? da : valueTmp->GetAbstractArray(i);
+
+    std::string name = aa->GetName();
+    if(name.empty()) // skip unnamed arrays
+      {
+      continue;
+      }
+    this->Write(path+"/"+name, da ? da : aa);
+    }
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkDataSet* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  vtkDataSet* valueTmp = const_cast<vtkDataSet*>(v);
+
+  this->Write(path+"/FieldData", valueTmp->GetFieldData());
+  this->Write(path+"/CellData", valueTmp->GetCellData());
+  this->Write(path+"/PointData", valueTmp->GetPointData());
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkImageData* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  this->Write(path+"/DataSet", static_cast<const vtkDataSet*>(v));
+
+  vtkImageData* valueTmp = const_cast<vtkImageData*>(v);
+  this->Writer->WriteScalar<vtkTypeUInt8>(path+"/DataObjectType", VTK_IMAGE_DATA);
+
+  double *origin = valueTmp->GetOrigin();
+  this->Writer->WriteScalar<double>(path+"/OriginX", origin[0]);
+  this->Writer->WriteScalar<double>(path+"/OriginY", origin[1]);
+  this->Writer->WriteScalar<double>(path+"/OriginZ", origin[2]);
+
+  double *spacing = valueTmp->GetSpacing();
+  this->Writer->WriteScalar<double>(path+"/SpacingX", spacing[0]);
+  this->Writer->WriteScalar<double>(path+"/SpacingY", spacing[1]);
+  this->Writer->WriteScalar<double>(path+"/SpacingZ", spacing[2]);
+
+  int *extent = valueTmp->GetExtent();
+  this->Writer->WriteScalar<int>(path+"/ExtentXMin", extent[0]);
+  this->Writer->WriteScalar<int>(path+"/ExtentXMax", extent[1]);
+  this->Writer->WriteScalar<int>(path+"/ExtentYMin", extent[2]);
+  this->Writer->WriteScalar<int>(path+"/ExtentYMax", extent[3]);
+  this->Writer->WriteScalar<int>(path+"/ExtentZMin", extent[4]);
+  this->Writer->WriteScalar<int>(path+"/ExtentZMax", extent[5]);
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path, const vtkPolyData* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  this->Write(path+"/DataSet", static_cast<const vtkDataSet*>(v));
+
+  vtkPolyData* valueTmp = const_cast<vtkPolyData*>(v);
+  this->Writer->WriteScalar<vtkTypeUInt8>(path+"/DataObjectType",
+    VTK_POLY_DATA);
+
+  vtkPoints *p;
+  if((p = valueTmp->GetPoints()))
+    {
+    this->Write(path+"/Points", p->GetData());
+    }
+
+  this->Write(path+"/Verticies", valueTmp->GetVerts());
+  this->Write(path+"/Lines", valueTmp->GetLines());
+  this->Write(path+"/Polygons", valueTmp->GetPolys());
+  this->Write(path+"/Strips", valueTmp->GetStrips());
+}
+
+//----------------------------------------------------------------------------
+void vtkADIOSWriter::Write(const std::string& path,
+  const vtkUnstructuredGrid* v)
+{
+  if(!this->UpdateMTimeTable(path, v))
+    {
+    return;
+    }
+
+  this->Write(path+"/DataSet", static_cast<const vtkDataSet*>(v));
+
+  vtkUnstructuredGrid *valueTmp = const_cast<vtkUnstructuredGrid*>(v);
+  this->Writer->WriteScalar<vtkTypeUInt8>(path+"/DataObjectType",
+    VTK_UNSTRUCTURED_GRID);
+
+  vtkPoints *p;
+  if((p = valueTmp->GetPoints()))
+    {
+    this->Write(path+"/Points", p->GetData());
+    }
+
+  vtkUnsignedCharArray *cta = valueTmp->GetCellTypesArray();
+  vtkIdTypeArray *cla = valueTmp->GetCellLocationsArray();
+  vtkCellArray *ca = valueTmp->GetCells();
+  if(cta && cla && ca)
+    {
+    this->Write(path+"/CellTypes", cta);
+    this->Write(path+"/CellLocations", cla);
+    this->Write(path+"/Cells", ca);
+    }
 }

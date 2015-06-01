@@ -167,10 +167,7 @@ void vtkInteractorEventRecorder::Play()
         return;
         }
       std::string inputStr(this->InputString, len);
-      if (this->InputStream)
-        {
-        delete this->InputStream;
-        }
+      delete this->InputStream;
       this->InputStream = new vtksys_ios::istringstream(inputStr);
       if (this->InputStream->fail())
         {
@@ -274,6 +271,7 @@ void vtkInteractorEventRecorder::Rewind()
  if ( ! this->InputStream ) //need to already have an open file
    {
    vtkGenericWarningMacro(<<"No input file opened to rewind...");
+   return;
    }
  this->InputStream->clear();
  this->InputStream->seekg(0);

@@ -61,7 +61,7 @@ vtkBitArray::vtkBitArray()
 //----------------------------------------------------------------------------
 vtkBitArray::~vtkBitArray()
 {
-  if ((this->Array) && (!this->SaveUserArray))
+  if (!this->SaveUserArray)
     {
     delete [] this->Array;
     }
@@ -131,7 +131,7 @@ int vtkBitArray::Allocate(vtkIdType sz, vtkIdType vtkNotUsed(ext))
 {
   if ( sz > this->Size )
     {
-    if (( this->Array != NULL ) && (!this->SaveUserArray))
+    if (!this->SaveUserArray)
       {
       delete [] this->Array;
       }
@@ -153,7 +153,7 @@ int vtkBitArray::Allocate(vtkIdType sz, vtkIdType vtkNotUsed(ext))
 // Release storage and reset array to initial state.
 void vtkBitArray::Initialize()
 {
-  if (( this->Array != NULL ) && (!this->SaveUserArray))
+  if (!this->SaveUserArray)
     {
     delete [] this->Array;
     }
@@ -191,7 +191,7 @@ void vtkBitArray::DeepCopy(vtkDataArray *ia)
 
   if ( this != ia )
     {
-    if ((this->Array) && (!this->SaveUserArray))
+    if (!this->SaveUserArray)
       {
       delete [] this->Array;
       }
@@ -414,7 +414,47 @@ void vtkBitArray::InsertTuples(vtkIdList *dstIds, vtkIdList *srcIds,
       this->InsertValue(dstLoc++, ba->GetValue(srcLoc++));
       }
     }
-    this->DataChanged();
+  this->DataChanged();
+}
+
+//------------------------------------------------------------------------------
+void vtkBitArray::InsertTuples(vtkIdType dstStart, vtkIdType n,
+                               vtkIdType srcStart, vtkAbstractArray *source)
+{
+  vtkBitArray* sa = vtkBitArray::SafeDownCast(source);
+  if (!sa)
+    {
+    vtkWarningMacro("Input and outputs array data types do not match.");
+    return ;
+    }
+
+  if (this->NumberOfComponents != source->GetNumberOfComponents())
+    {
+    vtkWarningMacro("Input and output component sizes do not match.");
+    return;
+    }
+
+  vtkIdType srcEnd = srcStart + n;
+  if (srcEnd > source->GetNumberOfTuples())
+    {
+    vtkWarningMacro("Source range exceeds array size (srcStart=" << srcStart
+                    << ", n=" << n << ", numTuples="
+                    << source->GetNumberOfTuples() << ").");
+    return;
+    }
+
+  for (vtkIdType i = 0; i < n; ++i)
+    {
+    vtkIdType numComp = this->NumberOfComponents;
+    vtkIdType srcLoc = (srcStart + i) * this->NumberOfComponents;
+    vtkIdType dstLoc = (dstStart + i) * this->NumberOfComponents;
+    while (numComp-- > 0)
+      {
+      this->InsertValue(dstLoc++, sa->GetValue(srcLoc++));
+      }
+    }
+
+  this->DataChanged();
 }
 
 //----------------------------------------------------------------------------
@@ -699,9 +739,6 @@ void vtkBitArray::DataChanged()
 //----------------------------------------------------------------------------
 void vtkBitArray::ClearLookup()
 {
-  if (this->Lookup)
-    {
-    delete this->Lookup;
-    this->Lookup = NULL;
-    }
+  delete this->Lookup;
+  this->Lookup = NULL;
 }

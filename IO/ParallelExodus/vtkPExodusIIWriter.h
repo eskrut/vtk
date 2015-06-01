@@ -61,8 +61,8 @@
 //     We use the terms "point" and "node" interchangeably.
 //     Also, we use the terms "element" and "cell" interchangeably.
 
-#ifndef __vtkPExodusIIWriter_h
-#define __vtkPExodusIIWriter_h
+#ifndef vtkPExodusIIWriter_h
+#define vtkPExodusIIWriter_h
 
 #include "vtkIOParallelExodusModule.h" // For export macro
 #include "vtkSmartPointer.h" // For vtkSmartPointer
@@ -93,6 +93,7 @@ protected:
   virtual int RequestUpdateExtent (vtkInformation* request,
                                    vtkInformationVector** inputVector,
                                    vtkInformationVector* outputVector);
+  virtual int GlobalContinueExecuting(int localContinue);
 
 private:
   vtkPExodusIIWriter (const vtkPExodusIIWriter&); // Not Implemented

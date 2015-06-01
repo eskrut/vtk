@@ -18,6 +18,7 @@
 
 #include "vtkActor2D.h"
 #include "vtkCellArray.h"
+#include "vtkInformation.h"
 #include "vtkMath.h"
 #include "vtkMatrix4x4.h"
 #include "vtkObjectFactory.h"
@@ -29,9 +30,10 @@
 #include "vtkPointData.h"
 #include "vtkPolyData.h"
 #include "vtkProperty2D.h"
+#include "vtkProperty.h"
 #include "vtkShader.h"
 #include "vtkShaderProgram.h"
-#include "vtkTexturedActor2D.h"
+#include "vtkTextureObject.h"
 #include "vtkUnsignedCharArray.h"
 #include "vtkViewport.h"
 
@@ -46,7 +48,8 @@ vtkStandardNewMacro(vtkOpenGLPolyDataMapper2D);
 vtkOpenGLPolyDataMapper2D::vtkOpenGLPolyDataMapper2D()
 {
   this->TransformedPoints = NULL;
-  this->LastDepthPeeling = 0;
+  this->CellScalarTexture = NULL;
+  this->CellScalarBuffer = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -56,6 +59,17 @@ vtkOpenGLPolyDataMapper2D::~vtkOpenGLPolyDataMapper2D()
     {
     this->TransformedPoints->UnRegister(this);
     }
+  if (this->CellScalarTexture)
+    { // Resources released previously.
+    this->CellScalarTexture->Delete();
+    this->CellScalarTexture = 0;
+    }
+  if (this->CellScalarBuffer)
+    { // Resources released previously.
+    delete this->CellScalarBuffer;
+    this->CellScalarBuffer = 0;
+    }
+  this->HaveCellScalars = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -66,21 +80,21 @@ void vtkOpenGLPolyDataMapper2D::ReleaseGraphicsResources(vtkWindow* win)
   this->Lines.ReleaseGraphicsResources(win);
   this->Tris.ReleaseGraphicsResources(win);
   this->TriStrips.ReleaseGraphicsResources(win);
+ if (this->CellScalarTexture)
+    {
+    this->CellScalarTexture->ReleaseGraphicsResources(win);
+    }
+  if (this->CellScalarBuffer)
+    {
+    this->CellScalarBuffer->ReleaseGraphicsResources();
+    }
   this->Modified();
 }
 
 //-----------------------------------------------------------------------------
-bool vtkOpenGLPolyDataMapper2D::GetNeedToRebuildShader(vtkgl::CellBO &cellBO, vtkViewport* viewport, vtkActor2D *actor)
+bool vtkOpenGLPolyDataMapper2D::GetNeedToRebuildShader(vtkgl::CellBO &cellBO,
+      vtkViewport* vtkNotUsed(viewport), vtkActor2D *actor)
 {
-  vtkOpenGLRenderer *ren = vtkOpenGLRenderer::SafeDownCast(viewport);
-
-  if (ren != NULL && this->LastDepthPeeling !=
-      ren->GetLastRenderingUsedDepthPeeling())
-    {
-    this->DepthPeelingChanged.Modified();
-    this->LastDepthPeeling = ren->GetLastRenderingUsedDepthPeeling();
-    }
-
   // has something changed that would require us to recreate the shader?
   // candidates are
   // property modified (representation interpolation and lighting)
@@ -89,7 +103,6 @@ bool vtkOpenGLPolyDataMapper2D::GetNeedToRebuildShader(vtkgl::CellBO &cellBO, vt
   if (cellBO.Program == 0 ||
       cellBO.ShaderSourceTime < this->GetMTime() ||
       cellBO.ShaderSourceTime < actor->GetMTime() ||
-      cellBO.ShaderSourceTime < this->DepthPeelingChanged ||
       cellBO.ShaderSourceTime < this->GetInput()->GetMTime())
     {
     return true;
@@ -101,27 +114,52 @@ bool vtkOpenGLPolyDataMapper2D::GetNeedToRebuildShader(vtkgl::CellBO &cellBO, vt
 //-----------------------------------------------------------------------------
 void vtkOpenGLPolyDataMapper2D::BuildShader(
   std::string &VSSource, std::string &FSSource, std::string &GSSource,
-  vtkViewport* viewport, vtkActor2D *vtkNotUsed(actor))
+  vtkViewport* vtkNotUsed(viewport), vtkActor2D *vtkNotUsed(actor))
 {
   VSSource = vtkglPolyData2DVS;
   FSSource = vtkglPolyData2DFS;
   GSSource.clear();
 
-  vtkOpenGLRenderer *ren = vtkOpenGLRenderer::SafeDownCast(viewport);
-
   // Build our shader if necessary.
-  if (this->Colors && this->Colors->GetNumberOfComponents())
+  if (this->HaveCellScalars)
     {
-    VSSource = vtkgl::replace(VSSource,
-                                 "//VTK::Color::Dec",
-                                 "attribute vec4 diffuseColor;");
+    vtkgl::substitute(FSSource,
+        "//VTK::Color::Dec",
+        "uniform samplerBuffer textureC;");
+    vtkgl::substitute(FSSource,
+        "//VTK::Color::Impl",
+        "gl_FragData[0] = texelFetchBuffer(textureC, gl_PrimitiveID + PrimitiveIDOffset);");
     }
   else
     {
-    VSSource = vtkgl::replace(VSSource,
-                                 "//VTK::Color::Dec",
-                                 "uniform vec4 diffuseColor;");
+    if (this->Colors &&
+        this->Colors->GetNumberOfComponents())
+      {
+      VSSource = vtkgl::replace(VSSource,
+         "//VTK::Color::Dec",
+         "attribute vec4 diffuseColor;\n"
+         "varying vec4 fcolor;");
+      vtkgl::substitute(VSSource,
+          "//VTK::Color::Impl",
+          "fcolor = diffuseColor;");
+      vtkgl::substitute(FSSource,
+          "//VTK::Color::Dec",
+          "varying vec4 fcolor;");
+      vtkgl::substitute(FSSource,
+          "//VTK::Color::Impl",
+          "gl_FragData[0] = fcolor;");
+      }
+    else
+      {
+      vtkgl::substitute(FSSource,
+          "//VTK::Color::Dec",
+          "uniform vec4 diffuseColor;");
+      vtkgl::substitute(FSSource,
+          "//VTK::Color::Impl",
+          "gl_FragData[0] = diffuseColor;");
+      }
     }
+
   if (this->Layout.TCoordComponents)
     {
     if (this->Layout.TCoordComponents == 1)
@@ -137,7 +175,7 @@ void vtkOpenGLPolyDataMapper2D::BuildShader(
                                    "varying float tcoordVC; uniform sampler2D texture1;");
       FSSource = vtkgl::replace(FSSource,
                                    "//VTK::TCoord::Impl",
-                                   "gl_FragColor = gl_FragColor*texture2D(texture1, vec2(tcoordVC,0));");
+                                   "gl_FragData[0] = gl_FragData[0]*texture2D(texture1, vec2(tcoordVC,0));");
       }
     else
       {
@@ -152,55 +190,9 @@ void vtkOpenGLPolyDataMapper2D::BuildShader(
                                    "varying vec2 tcoordVC; uniform sampler2D texture1;");
       FSSource = vtkgl::replace(FSSource,
                                    "//VTK::TCoord::Impl",
-                                   "gl_FragColor = gl_FragColor*texture2D(texture1, tcoordVC.st);");
+                                   "gl_FragData[0] = gl_FragData[0]*texture2D(texture1, tcoordVC.st);");
       }
     }
-  else
-    {
-    VSSource = vtkgl::replace(VSSource,
-                                 "//VTK::TCoord::Dec","");
-    VSSource = vtkgl::replace(VSSource,
-                                 "//VTK::TCoord::Impl","");
-    FSSource = vtkgl::replace(FSSource,
-                                 "//VTK::TCoord::Dec","");
-    FSSource = vtkgl::replace(FSSource,
-                                 "//VTK::TCoord::Impl","");
-    }
-
-  if (ren && ren->GetLastRenderingUsedDepthPeeling() == 2)
-    {
-    FSSource = vtkgl::replace(FSSource,
-      "//VTK::DepthPeeling::Dec",
-      "uniform vec2 screenSize;\n"
-      "uniform sampler2D translucentRGBATexture;\n"
-      "uniform sampler2D currentRGBATexture;\n");
-    FSSource = vtkgl::replace(FSSource,
-      "//VTK::DepthPeeling::Impl",
-      "vec4 t1Color = texture2D(translucentRGBATexture, gl_FragCoord.xy/screenSize);\n"
-      "vec4 t2Color = texture2D(currentRGBATexture, gl_FragCoord.xy/screenSize);\n"
-      "gl_FragColor.a = t1Color.a + t2Color.a * (1.0-t1Color.a);\n"
-      "if (gl_FragColor.a > 0.0) { gl_FragColor.rgb = (t1Color.rgb*t1Color.a + t2Color.rgb*t2Color.a*(1.0-t1Color.a))/gl_FragColor.a; }\n"
-      "else { gl_FragColor.rgb = vec3(0.0,0.0,0.0); }\n"
-      );
-    }
-  if (ren && ren->GetLastRenderingUsedDepthPeeling() == 3)
-    {
-    FSSource = vtkgl::replace(FSSource,
-      "//VTK::DepthPeeling::Dec",
-      "uniform vec2 screenSize;\n"
-      "uniform sampler2D translucentRGBATexture;\n"
-      "uniform sampler2D opaqueRGBATexture;\n");
-    FSSource = vtkgl::replace(FSSource,
-      "//VTK::DepthPeeling::Impl",
-      "vec4 t1Color = texture2D(translucentRGBATexture, gl_FragCoord.xy/screenSize);\n"
-      "vec4 t2Color = texture2D(opaqueRGBATexture, gl_FragCoord.xy/screenSize);\n"
-      "gl_FragColor.a = 1.0;\n"
-      "gl_FragColor.rgb = (t1Color.rgb*t1Color.a + t2Color.rgb*(1.0-t1Color.a));\n"
-   //   "gl_FragColor.rgb = (t1Color.rgb*0.5 + t2Color.rgb*0.5);\n"
-      );
-    }
-
-  //cout << "VS: " << VSSource << endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -227,7 +219,7 @@ void vtkOpenGLPolyDataMapper2D::UpdateShader(vtkgl::CellBO &cellBO,
       cellBO.vao.ShaderProgramChanged(); // reset the VAO as the shader has changed
       }
     }
-    else
+  else
     {
     renWin->GetShaderCache()->ReadyShader(cellBO.Program);
     }
@@ -242,13 +234,12 @@ void vtkOpenGLPolyDataMapper2D::UpdateShader(vtkgl::CellBO &cellBO,
 
 //-----------------------------------------------------------------------------
 void vtkOpenGLPolyDataMapper2D::SetMapperShaderParameters(
-  vtkgl::CellBO &cellBO, vtkViewport *viewport, vtkActor2D *actor)
+  vtkgl::CellBO &cellBO, vtkViewport *vtkNotUsed(viewport), vtkActor2D *actor)
 {
-  vtkOpenGLRenderer *ren = vtkOpenGLRenderer::SafeDownCast(viewport);
-
   // Now to update the VAO too, if necessary.
   vtkgl::VBOLayout &layout = this->Layout;
-  if (this->VBOUpdateTime > cellBO.attributeUpdateTime)
+  if (this->VBOUpdateTime > cellBO.attributeUpdateTime ||
+      cellBO.ShaderSourceTime > cellBO.attributeUpdateTime)
     {
     cellBO.vao.Bind();
     if (!cellBO.vao.AddAttributeArray(cellBO.Program, this->VBO,
@@ -279,45 +270,20 @@ void vtkOpenGLPolyDataMapper2D::SetMapperShaderParameters(
     cellBO.attributeUpdateTime.Modified();
     }
 
+  if (this->HaveCellScalars)
+    {
+    int tunit = this->CellScalarTexture->GetTextureUnit();
+    cellBO.Program->SetUniformi("textureC", tunit);
+    }
+
   if (layout.TCoordComponents)
     {
-    vtkTexturedActor2D *ta = vtkTexturedActor2D::SafeDownCast(actor);
-    int tunit = 0;
-    if (ta)
+    vtkInformation *info = actor->GetPropertyKeys();
+    if (info && info->Has(vtkProp::GeneralTextureUnit()))
       {
-      vtkOpenGLTexture *texture = vtkOpenGLTexture::SafeDownCast(ta->GetTexture());
-      tunit = texture->GetTextureUnit();
+      int tunit = info->Get(vtkProp::GeneralTextureUnit());
+      cellBO.Program->SetUniformi("texture1", tunit);
       }
-    cellBO.Program->SetUniformi("texture1", tunit);
-    }
-
-  // if depth peeling for trabslucetn compositing
-  if (ren->GetLastRenderingUsedDepthPeeling() == 2)
-    {
-    int ttunit = ren->GetTranslucentRGBATextureUnit();
-    cellBO.Program->SetUniformi("translucentRGBATexture", ttunit);
-    int ctunit = ren->GetCurrentRGBATextureUnit();
-    cellBO.Program->SetUniformi("currentRGBATexture", ctunit);
-
-    int *renSize = ren->GetSize();
-    float screenSize[2];
-    screenSize[0] = renSize[0];
-    screenSize[1] = renSize[1];
-    cellBO.Program->SetUniform2f("screenSize", screenSize);
-    }
-  // if depth peeling final compositing
-  if (ren->GetLastRenderingUsedDepthPeeling() == 3)
-    {
-    int ttunit = ren->GetTranslucentRGBATextureUnit();
-    cellBO.Program->SetUniformi("translucentRGBATexture", ttunit);
-    int ctunit = ren->GetOpaqueRGBATextureUnit();
-    cellBO.Program->SetUniformi("opaqueRGBATexture", ctunit);
-
-    int *renSize = ren->GetSize();
-    float screenSize[2];
-    screenSize[0] = renSize[0];
-    screenSize[1] = renSize[1];
-    cellBO.Program->SetUniform2f("screenSize", screenSize);
     }
 }
 
@@ -325,14 +291,20 @@ void vtkOpenGLPolyDataMapper2D::SetMapperShaderParameters(
 void vtkOpenGLPolyDataMapper2D::SetPropertyShaderParameters(
   vtkgl::CellBO &cellBO, vtkViewport*, vtkActor2D *actor)
 {
-  vtkShaderProgram *program = cellBO.Program;
+  if (!this->Colors || !this->Colors->GetNumberOfComponents())
+    {
+    vtkShaderProgram *program = cellBO.Program;
 
-  // Query the actor for some of the properties that can be applied.
-  float opacity = static_cast<float>(actor->GetProperty()->GetOpacity());
-  double *dColor = actor->GetProperty()->GetColor();
-  float diffuseColor[4] = {static_cast<float>(dColor[0]), static_cast<float>(dColor[1]), static_cast<float>(dColor[2]), static_cast<float>(opacity)};
+    // Query the actor for some of the properties that can be applied.
+    float opacity = static_cast<float>(actor->GetProperty()->GetOpacity());
+    double *dColor = actor->GetProperty()->GetColor();
+    float diffuseColor[4] = {static_cast<float>(dColor[0]),
+      static_cast<float>(dColor[1]),
+      static_cast<float>(dColor[2]),
+      static_cast<float>(opacity)};
 
-  program->SetUniform4f("diffuseColor", diffuseColor);
+    program->SetUniform4f("diffuseColor", diffuseColor);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -407,10 +379,12 @@ void vtkOpenGLPolyDataMapper2D::SetCameraShaderParameters(
   vtkMatrix4x4 *tmpMat = vtkMatrix4x4::New();
   tmpMat->SetElement(0,0,2.0/(right - left));
   tmpMat->SetElement(1,1,2.0/(top - bottom));
+  // XXX(cppcheck): possible division by zero
   tmpMat->SetElement(2,2,-2.0/(farV - nearV));
   tmpMat->SetElement(3,3,1.0);
   tmpMat->SetElement(0,3,-1.0*(right+left)/(right-left));
   tmpMat->SetElement(1,3,-1.0*(top+bottom)/(top-bottom));
+  // XXX(cppcheck): possible division by zero
   tmpMat->SetElement(2,3,-1.0*(farV+nearV)/(farV-nearV));
   tmpMat->Transpose();
   program->SetUniformMatrix("WCVCMatrix", tmpMat);
@@ -432,7 +406,7 @@ void vtkOpenGLPolyDataMapper2D::UpdateVBO(vtkActor2D *act, vtkViewport *viewport
     return;
     }
 
-  bool cellScalars = false;
+  this->HaveCellScalars = false;
   if (this->ScalarVisibility)
     {
     // We must figure out how the scalars should be mapped to the polydata.
@@ -444,31 +418,58 @@ void vtkOpenGLPolyDataMapper2D::UpdateVBO(vtkActor2D *act, vtkViewport *viewport
          && this->ScalarMode != VTK_SCALAR_MODE_USE_POINT_FIELD_DATA
          && this->Colors)
       {
-      cellScalars = true;
+      this->HaveCellScalars = true;
       }
     }
 
   // if we have cell scalars then we have to
-  // explode the data
+  // build the texture
   vtkCellArray *prims[4];
   prims[0] =  poly->GetVerts();
   prims[1] =  poly->GetLines();
   prims[2] =  poly->GetPolys();
   prims[3] =  poly->GetStrips();
-  std::vector<unsigned int> cellPointMap;
-  std::vector<unsigned int> pointCellMap;
-  if (cellScalars)
+  std::vector<unsigned int> cellCellMap;
+  vtkDataArray *c = this->Colors;
+  if (this->HaveCellScalars)
     {
-    vtkgl::CreateCellSupportArrays(poly, prims, cellPointMap, pointCellMap);
+    vtkgl::CreateCellSupportArrays(prims, cellCellMap, VTK_SURFACE);
+
+    if (!this->CellScalarTexture)
+      {
+      this->CellScalarTexture = vtkTextureObject::New();
+      this->CellScalarBuffer = new vtkgl::BufferObject;
+      }
+    this->CellScalarTexture->SetContext(
+      static_cast<vtkOpenGLRenderWindow*>(viewport->GetVTKWindow()));
+    // create the cell scalar array adjusted for ogl Cells
+    std::vector<unsigned char> newColors;
+    unsigned char *colorPtr = this->Colors->GetPointer(0);
+    int numComp = this->Colors->GetNumberOfComponents();
+    assert(numComp == 4);
+    for (unsigned int i = 0; i < cellCellMap.size(); i++)
+      {
+      for (j = 0; j < numComp; j++)
+        {
+        newColors.push_back(colorPtr[cellCellMap[i]*numComp + j]);
+        }
+      }
+    this->CellScalarBuffer->Upload(newColors,
+      vtkgl::BufferObject::ArrayBuffer);
+    this->CellScalarTexture->CreateTextureBuffer(
+      static_cast<unsigned int>(cellCellMap.size()),
+      numComp,
+      VTK_UNSIGNED_CHAR,
+      this->CellScalarBuffer);
+    c = NULL;
     }
 
   // do we have texture maps?
   bool haveTextures = false;
-  vtkTexturedActor2D *ta =
-      vtkTexturedActor2D::SafeDownCast(act);
-  if (ta)
+  vtkInformation *info = act->GetPropertyKeys();
+  if (info && info->Has(vtkProp::GeneralTextureUnit()))
     {
-    haveTextures = (ta->GetTexture() != NULL);
+    haveTextures = true;
     }
 
   // Transform the points, if necessary
@@ -502,38 +503,23 @@ void vtkOpenGLPolyDataMapper2D::UpdateVBO(vtkActor2D *act, vtkViewport *viewport
   // and IBOs as appropriate for each type.
   this->Layout =
     CreateVBO(p,
-              cellPointMap.size() > 0 ? (unsigned int)cellPointMap.size() : poly->GetPoints()->GetNumberOfPoints(),
+              poly->GetPoints()->GetNumberOfPoints(),
               NULL,
               haveTextures ? poly->GetPointData()->GetTCoords() : NULL,
-              this->Colors ? (unsigned char *)this->Colors->GetVoidPointer(0) : NULL,
-              this->Colors ? this->Colors->GetNumberOfComponents() : 0,
-              this->VBO,
-              cellPointMap.size() > 0 ? &cellPointMap.front() : NULL,
-              pointCellMap.size() > 0 ? &pointCellMap.front() : NULL);
+              c ? (unsigned char *) c->GetVoidPointer(0) : NULL,
+              c ? c->GetNumberOfComponents() : 0,
+              this->VBO);
 
 
   this->Points.indexCount = CreatePointIndexBuffer(prims[0],
                                                     this->Points.ibo);
-  this->Lines.indexCount = CreateMultiIndexBuffer(prims[1],
-                         this->Lines.ibo,
-                         this->Lines.offsetArray,
-                         this->Lines.elementsArray, false);
+  this->Lines.indexCount = CreateLineIndexBuffer(prims[1], this->Lines.ibo);
   this->Tris.indexCount = CreateTriangleIndexBuffer(prims[2],
-                                                              this->Tris.ibo,
-                                                              poly->GetPoints());
-  this->TriStrips.indexCount = CreateMultiIndexBuffer(prims[3],
-                         this->TriStrips.ibo,
-                         this->TriStrips.offsetArray,
-                         this->TriStrips.elementsArray, false);
+                                                    this->Tris.ibo,
+                                                    poly->GetPoints());
+  this->TriStrips.indexCount = CreateStripIndexBuffer(prims[3],
+                         this->TriStrips.ibo, false);
 
-  // free up new cell arrays
-  if (cellScalars)
-    {
-    for (int primType = 0; primType < 4; primType++)
-      {
-      prims[primType]->UnRegister(this);
-      }
-    }
 }
 
 
@@ -584,8 +570,16 @@ void vtkOpenGLPolyDataMapper2D::RenderOverlay(vtkViewport* viewport,
   this->VBO.Bind();
   vtkgl::VBOLayout &layout = this->Layout;
 
+  if (this->HaveCellScalars)
+    {
+    this->CellScalarTexture->Activate();
+    }
+
   // Figure out and build the appropriate shader for the mapped geometry.
+  this->PrimitiveIDOffset = 0;
   this->UpdateShader(this->Points, viewport, actor);
+  this->Points.Program->SetUniformi("PrimitiveIDOffset",
+    this->PrimitiveIDOffset);
 
   if (this->Points.indexCount)
     {
@@ -600,22 +594,30 @@ void vtkOpenGLPolyDataMapper2D::RenderOverlay(vtkViewport* viewport,
                         GL_UNSIGNED_INT,
                         reinterpret_cast<const GLvoid *>(NULL));
     this->Points.ibo.Release();
+    this->PrimitiveIDOffset += (int)this->Points.indexCount;
+    this->Points.Program->SetUniformi("PrimitiveIDOffset",
+      this->PrimitiveIDOffset);
     }
 
   if (this->Lines.indexCount)
     {
     // Set the LineWidth
-    glLineWidth(actor->GetProperty()->GetLineWidth()); // supported by all OpenGL versions
-
-    this->Lines.ibo.Bind();
-    for (size_t eCount = 0; eCount < this->Lines.offsetArray.size(); ++eCount)
+    if (vtkOpenGLRenderWindow::GetContextSupportsOpenGL32() &&
+        actor->GetProperty()->GetLineWidth() > 1.0)
       {
-      glDrawElements(GL_LINE_STRIP,
-        this->Lines.elementsArray[eCount],
-        GL_UNSIGNED_INT,
-        (GLvoid *)(this->Lines.offsetArray[eCount]));
+      vtkWarningMacro("line widths above 1.0 are not supported by OpenGL 3.2");
       }
+    glLineWidth(actor->GetProperty()->GetLineWidth());
+    this->Lines.ibo.Bind();
+    glDrawRangeElements(GL_LINES, 0,
+                        static_cast<GLuint>(layout.VertexCount - 1),
+                        static_cast<GLsizei>(this->Lines.indexCount),
+                        GL_UNSIGNED_INT,
+                        reinterpret_cast<const GLvoid *>(NULL));
     this->Lines.ibo.Release();
+    this->PrimitiveIDOffset += (int)this->Lines.indexCount/2;
+    this->Points.Program->SetUniformi("PrimitiveIDOffset",
+      this->PrimitiveIDOffset);
     }
 
   // now handle lit primatives
@@ -628,19 +630,25 @@ void vtkOpenGLPolyDataMapper2D::RenderOverlay(vtkViewport* viewport,
                         GL_UNSIGNED_INT,
                         reinterpret_cast<const GLvoid *>(NULL));
     this->Tris.ibo.Release();
+    this->PrimitiveIDOffset += (int)this->Tris.indexCount/3;
+    this->Points.Program->SetUniformi("PrimitiveIDOffset",
+      this->PrimitiveIDOffset);
     }
 
   if (this->TriStrips.indexCount)
     {
     this->TriStrips.ibo.Bind();
-    for (size_t eCount = 0; eCount < this->TriStrips.offsetArray.size(); ++eCount)
-      {
-      glDrawElements(GL_TRIANGLE_STRIP,
-        this->TriStrips.elementsArray[eCount],
-        GL_UNSIGNED_INT,
-        (GLvoid *)(this->TriStrips.offsetArray[eCount]));
-      }
+    glDrawRangeElements(GL_TRIANGLES, 0,
+                        static_cast<GLuint>(layout.VertexCount - 1),
+                        static_cast<GLsizei>(this->TriStrips.indexCount),
+                        GL_UNSIGNED_INT,
+                        reinterpret_cast<const GLvoid *>(NULL));
     this->TriStrips.ibo.Release();
+    }
+
+  if (this->HaveCellScalars)
+    {
+    this->CellScalarTexture->Deactivate();
     }
 
   this->Points.vao.Release();

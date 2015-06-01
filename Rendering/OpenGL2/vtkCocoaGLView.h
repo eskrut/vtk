@@ -18,23 +18,26 @@
 // This class is a subclass of Cocoa's NSView; it uses Objective-C++.
 // This class overrides several NSView methods.
 // To provide the usual VTK keyboard user interface, it overrides the
-// following methods from NSResponder: acceptsFirstResponder, keyDown:,
+// following methods: acceptsFirstResponder, keyDown:,
 // keyUp:, and flagsChanged:
 // To provide the usual VTK mouse user interface, it overrides the
-// following methods from NSResponder: mouseMoved:, mouseEntered:,
+// following methods: mouseMoved:, mouseEntered:,
 // mouseExited: scrollWheel:, mouseDown:, rightMouseDown:,
-// otherMouseDown:, and resetCursorRects.
-// To be able to render and draw onscreen, it overrides drawRect:
-// from NSView.
+// otherMouseDown:, mouseDragged:, rightMouseDragged:, otherMouseDragged:,
+// and updateTrackingAreas.
+// To be able to render and draw onscreen, it overrides drawRect:.
 
-// Note that this class was previously a subclass of NSOpenGLView,
+// Compatibility notes:
+// - this class was previously a subclass of NSOpenGLView,
 // but starting with VTK 5.0 is now a subclass of NSView.
+// - starting with VTK 6.3 this class overrides the more modern
+// updateTrackingAreas instead of resetCursorRects.
 //
 // .SECTION See Also
 // vtkCocoaRenderWindow vtkCocoaRenderWindowInteractor
 
-#ifndef __vtkCocoaGLView_h
-#define __vtkCocoaGLView_h
+#ifndef vtkCocoaGLView_h
+#define vtkCocoaGLView_h
 
 #import <Cocoa/Cocoa.h>
 
@@ -58,8 +61,7 @@
 {
   @private
   vtkCocoaRenderWindowRef _myVTKRenderWindow;
-  NSTrackingRectTag _rolloverTrackingRectTag;
-  BOOL _rolloverTrackingRectSet;
+  NSTrackingArea* _rolloverTrackingArea;
 }
 
 - (vtkCocoaRenderWindowRef)getVTKRenderWindow;
@@ -69,5 +71,5 @@
 
 @end
 
-#endif /* __vtkCocoaGLView_h */
+#endif /* vtkCocoaGLView_h */
 // VTK-HeaderTest-Exclude: vtkCocoaGLView.h

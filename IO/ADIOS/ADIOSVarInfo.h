@@ -20,31 +20,51 @@
 #include <string>
 #include <vector>
 
+#include <adios_read.h>
+
 //----------------------------------------------------------------------------
-class ADIOSVarInfo
+namespace ADIOS
+{
+
+class VarInfo
 {
 public:
-  ADIOSVarInfo(const std::string &name = "", void* var = NULL);
-  ~ADIOSVarInfo(void);
+  // Data structure used to hold block index mapping info
+  struct StepBlock
+  {
+    StepBlock() : Step(-1), Block(-1), BlockId(-1) {}
+    StepBlock(int s, int b, int i) : Step(s), Block(b), BlockId(i) { }
+    int Step;
+    int Block;
+    int BlockId;
+  };
 
-  std::string GetName(void) const;
-  int GetId(void) const;
-  int GetType(void) const;
+public:
+  VarInfo(ADIOS_FILE *f, ADIOS_VARINFO *v);
+  virtual ~VarInfo(void);
+  void SetName(const std::string& name) { this->Name = name; }
+
+  const int& GetId() const;
+  const ADIOS_DATATYPES& GetType() const;
+  const std::string& GetName(void) const;
   size_t GetNumSteps(void) const;
-  bool IsGlobal(void) const;
-  bool IsScalar(void) const;
-  void GetDims(std::vector<size_t>& dims, int block) const;
+  size_t GetNumBlocks(size_t step) const;
+  StepBlock* GetNewestBlockIndex(size_t step, size_t pid) const;
+  void GetDims(std::vector<size_t>& dims, size_t step, size_t pid) const;
 
-  template<typename T>
-  T GetValue(int step = 0) const;
+protected:
+  int Id;
+  ADIOS_DATATYPES Type;
+  std::string Name;
+  size_t NumSteps;
+  size_t NumPids;
+  std::vector<std::vector<size_t> > Dims;
 
-  template<typename T>
-  const T* GetAllValues(void) const;
-
-private:
-  struct ADIOSVarInfoImpl;
-  ADIOSVarInfoImpl *Impl;
+  // This maps the absolute time step and process id to a file-local
+  // step and block id for reading
+  std::vector<StepBlock*> StepBlockIndex;
 };
 
+} // End namespace ADIOS
 #endif // _ADIOSVarInfo_h
 // VTK-HeaderTest-Exclude: ADIOSVarInfo.h

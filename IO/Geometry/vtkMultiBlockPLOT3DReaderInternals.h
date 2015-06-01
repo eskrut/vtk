@@ -12,8 +12,8 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkMultiBlockPLOT3DReaderInternals_h
-#define __vtkMultiBlockPLOT3DReaderInternals_h
+#ifndef vtkMultiBlockPLOT3DReaderInternals_h
+#define vtkMultiBlockPLOT3DReaderInternals_h
 
 #include "vtkByteSwap.h"
 #include "vtkMultiBlockPLOT3DReader.h"
@@ -48,7 +48,7 @@ struct vtkMultiBlockPLOT3DReaderInternals
     }
 
   int ReadInts(FILE* fp, int n, int* val);
-  void CheckBinaryFile(FILE *fp);
+  void CheckBinaryFile(FILE *fp, long fileSize);
   int CheckByteOrder(FILE* fp);
   int CheckByteCount(FILE* fp);
   int CheckMultiGrid(FILE* fp);

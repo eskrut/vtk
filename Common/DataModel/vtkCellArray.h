@@ -29,8 +29,8 @@
 // .SECTION See Also
 // vtkCellTypes vtkCellLinks
 
-#ifndef __vtkCellArray_h
-#define __vtkCellArray_h
+#ifndef vtkCellArray_h
+#define vtkCellArray_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkObject.h"
@@ -220,7 +220,7 @@ public:
     {this->Ia->Squeeze();}
 
   // Description:
-  // Return the memory in kilobytes consumed by this cell array. Used to
+  // Return the memory in kibibytes (1024 bytes) consumed by this cell array. Used to
   // support streaming and reading/writing data. The value returned is
   // guaranteed to be greater than or equal to the memory required to
   // actually represent the data represented by this object. The

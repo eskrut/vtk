@@ -436,8 +436,8 @@ void vtkCirclePackFrontChainLayoutStrategyImplementation::packBrotherNodes(std::
       }
     }
 
-  double scaleFactor = enclosingCircleRadius/layoutRadius;
-  if (layoutRadius == 0) scaleFactor = 1;
+  double scaleFactor = (layoutRadius == 0) ? 1.0 : (enclosingCircleRadius/layoutRadius);
+
   // Scale and translate each circle
   for(int i = 0;i < (int) packedNodes.size();i++)
     {
@@ -793,11 +793,8 @@ vtkCirclePackFrontChainLayoutStrategy::vtkCirclePackFrontChainLayoutStrategy()
 
 vtkCirclePackFrontChainLayoutStrategy::~vtkCirclePackFrontChainLayoutStrategy()
 {
-  if(this->pimpl)
-    {
-    delete this->pimpl;
-    this->pimpl = 0;
-    }
+  delete this->pimpl;
+  this->pimpl=0;
 }
 
 void vtkCirclePackFrontChainLayoutStrategy::Layout(vtkTree *inputTree,

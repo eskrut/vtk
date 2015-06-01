@@ -29,7 +29,7 @@
 #include <vtksys/ios/sstream>
 #include <vtksys/SystemTools.hxx>
 
-#include <vtkSmartPointer.h>
+#include "vtkSmartPointer.h"
 #define VTK_CREATE(classname, varname) vtkSmartPointer<classname> varname = vtkSmartPointer<classname>::New()
 
 #include <libpq-fe.h>
@@ -266,10 +266,7 @@ bool vtkPostgreSQLDatabase::Open( const char* password )
     }
   if ( password && this->Password != password )
     {
-    if ( this->Password )
-      {
-      delete [] this->Password;
-      }
+    delete [] this->Password;
     this->Password = password ? vtksys::SystemTools::DuplicateString( password ) : 0;
     }
   if ( this->Password && strlen( this->Password ) > 0 )

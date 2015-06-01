@@ -60,6 +60,17 @@ public:
   virtual QVTKInteractor* GetInteractor();
 
   // Description:
+  // Set the number of multisamples to use for antialiasing in this GLContext
+  // Note: This will overwrite the MultiSamples of the internal vtkRenderWindow.
+  // Warning: this->GetRenderWindow()->SetMultiSamples() will not have any effect, since
+  // this is not synchronized with the vtkRenderWindow.
+  virtual void SetMultiSamples(int multiSamples);
+
+  // Description:
+  // Get the number of multisamples used for antialiasing
+  virtual int GetMultiSamples() const;
+
+  // Description:
   // Use a 3DConnexion device. Initial value is false.
   // If VTK is not build with the TDx option, this is no-op.
   // If VTK is build with the TDx option, and a device is not connected,
@@ -109,6 +120,8 @@ protected:
   // overloaded move handler
   virtual void moveEvent(QMoveEvent* event);
 
+  // overloaded touch events
+  virtual bool event(QEvent* e);
   // overloaded mouse press handler
   virtual void mousePressEvent(QMouseEvent* event);
   // overloaded mouse move handler

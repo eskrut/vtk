@@ -27,8 +27,8 @@
 // .SECTION See Also
 // vtkHighestDensityRegionsStatistics
 
-#ifndef __vtkPlotBag_h
-#define __vtkPlotBag_h
+#ifndef vtkPlotBag_h
+#define vtkPlotBag_h
 
 #include "vtkChartsCoreModule.h" // For export macro
 #include "vtkPlotPoints.h"
@@ -92,6 +92,11 @@ public:
                             vtkIdType yColumn,
                             vtkIdType densityColumn);
 
+  // Description:
+  // Set/get the visibility of the bags.
+  // True by default.
+  vtkSetMacro(BagVisible, bool);
+  vtkGetMacro(BagVisible, bool);
 
   // Description:
   // Set/get the vtkPen object that controls how this plot draws boundary lines.
@@ -111,6 +116,7 @@ protected:
 
   void UpdateTableCache(vtkDataArray*);
 
+  bool BagVisible;
   vtkPoints2D* MedianPoints;
   vtkPoints2D* Q3Points;
   vtkPen* LinePen;
@@ -120,4 +126,4 @@ private:
   void operator=(const vtkPlotBag &); // Not implemented.
 };
 
-#endif //__vtkPlotBag_h
+#endif //vtkPlotBag_h

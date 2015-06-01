@@ -61,8 +61,8 @@
 // .SECTION See Also
 // vtkShepardMethod
 
-#ifndef __vtkGaussianSplatter_h
-#define __vtkGaussianSplatter_h
+#ifndef vtkGaussianSplatter_h
+#define vtkGaussianSplatter_h
 
 #include "vtkImagingHybridModule.h" // For export macro
 #include "vtkImageAlgorithm.h"
@@ -72,6 +72,8 @@
 #define VTK_ACCUMULATION_MODE_SUM 2
 
 class vtkDoubleArray;
+class vtkCompositeDataSet;
+class vtkGaussianSplatterAlgorithm;
 
 class VTKIMAGINGHYBRID_EXPORT vtkGaussianSplatter : public vtkImageAlgorithm
 {
@@ -185,6 +187,50 @@ public:
   // input data. This is an internal helper function.
   void ComputeModelBounds(vtkDataSet *input, vtkImageData *output,
                           vtkInformation *outInfo);
+  void ComputeModelBounds(vtkCompositeDataSet *input, vtkImageData *output,
+                          vtkInformation *outInfo);
+
+//BTX
+  // Description:
+  // Provide access to templated helper class. Note that SamplePoint() method
+  // is public here because some compilers don't handle friend functions
+  // properly.
+  friend class vtkGaussianSplatterAlgorithm;
+  double SamplePoint(double x[3]) //for compilers who can't handle this
+    {return (this->*Sample)(x);}
+  void SetScalar(int idx, double dist2, double *sPtr)
+  {
+    double v = (this->*SampleFactor)(this->S) * exp(static_cast<double>
+      (this->ExponentFactor*(dist2)/(this->Radius2)));
+
+    if ( ! this->Visited[idx] )
+      {
+      this->Visited[idx] = 1;
+      *sPtr = v;
+      }
+    else
+      {
+      switch (this->AccumulationMode)
+        {
+        case VTK_ACCUMULATION_MODE_MIN:
+          if ( *sPtr > v )
+            {
+            *sPtr = v;
+            }
+          break;
+        case VTK_ACCUMULATION_MODE_MAX:
+          if ( *sPtr < v )
+            {
+            *sPtr = v;
+            }
+          break;
+        case VTK_ACCUMULATION_MODE_SUM:
+          *sPtr += v;
+          break;
+        }
+      }//not first visit
+  }
+//ETX
 
 protected:
   vtkGaussianSplatter();
@@ -217,7 +263,6 @@ protected:
     {return this->ScaleFactor * s;}
   double PositionSampling(double)
     {return this->ScaleFactor;}
-  void SetScalar(int idx, double dist2, vtkDoubleArray *newScalars);
 
 //BTX
 private:
@@ -241,5 +286,3 @@ private:
 };
 
 #endif
-
-

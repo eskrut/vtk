@@ -26,8 +26,8 @@
 // Sandia National Laboratories for their help in developing this class.
 
 
-#ifndef __vtkVariantArray_h
-#define __vtkVariantArray_h
+#ifndef vtkVariantArray_h
+#define vtkVariantArray_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkAbstractArray.h"
@@ -109,6 +109,13 @@ public:
                             vtkAbstractArray *source);
 
   // Description:
+  // Copy n consecutive tuples starting at srcStart from the source array to
+  // this array, starting at the dstStart location.
+  // Note that memory allocation is performed as necessary to hold the data.
+  virtual void InsertTuples(vtkIdType dstStart, vtkIdType n, vtkIdType srcStart,
+                            vtkAbstractArray* source);
+
+  // Description:
   // Insert the jth tuple in the source array, at the end in this array.
   // Note that memory allocation is performed as necessary to hold the data.
   // Returns the location at which the data was inserted.
@@ -168,7 +175,7 @@ public:
                             int save);
 
   // Description:
-  // Return the memory in kilobytes consumed by this data array. Used to
+  // Return the memory in kibibytes (1024 bytes) consumed by this data array. Used to
   // support streaming and reading/writing data. The value returned is
   // guaranteed to be greater than or equal to the memory required to
   // actually represent the data represented by this object. The

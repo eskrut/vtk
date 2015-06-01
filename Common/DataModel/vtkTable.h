@@ -44,8 +44,8 @@
 // Thanks to Patricia Crossno, Ken Moreland, Andrew Wilson and Brian Wylie from
 // Sandia National Laboratories for their help in developing this class API.
 
-#ifndef __vtkTable_h
-#define __vtkTable_h
+#ifndef vtkTable_h
+#define vtkTable_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkDataObject.h"
@@ -74,7 +74,7 @@ public:
   int GetDataObjectType() {return VTK_TABLE;}
 
   // Description:
-  // Return the actual size of the data in kilobytes. This number
+  // Return the actual size of the data in kibibytes (1024 bytes). This number
   // is valid only after the pipeline has updated. The memory size
   // returned is guaranteed to be greater than or equal to the
   // memory required to represent the data (e.g., extra space in

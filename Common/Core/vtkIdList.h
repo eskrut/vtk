@@ -18,8 +18,8 @@
 // objects. vtkIdList may represent any type of integer id, but
 // usually represents point and cell ids.
 
-#ifndef __vtkIdList_h
-#define __vtkIdList_h
+#ifndef vtkIdList_h
+#define vtkIdList_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -152,7 +152,10 @@ inline vtkIdType vtkIdList::InsertNextId(const vtkIdType vtkid)
 {
   if ( this->NumberOfIds >= this->Size )
     {
-    this->Resize(this->NumberOfIds+1);
+    if (!this->Resize(this->NumberOfIds+1))
+      {
+      return this->NumberOfIds-1;
+      }
     }
   this->Ids[this->NumberOfIds++] = vtkid;
   return this->NumberOfIds-1;

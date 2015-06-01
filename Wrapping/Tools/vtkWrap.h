@@ -134,6 +134,11 @@ int vtkWrap_IsTypeOf(
   HierarchyInfo *hinfo, const char *classname, const char *superclass);
 
 /**
+ * Check if the type of the value is an enum member of the class.
+ */
+int vtkWrap_IsEnumMember(ClassInfo *data, ValueInfo *arg);
+
+/**
  * Check whether a class is wrapped.  If "hinfo" is NULL,
  * it just checks that the class starts with "vtk".
  */
@@ -156,6 +161,15 @@ int vtkWrap_HasPublicCopyConstructor(ClassInfo *data);
  * that the wrappers see the real types.
  */
 void vtkWrap_ExpandTypedefs(
+  ClassInfo *data, FileInfo *finfo, HierarchyInfo *hinfo);
+
+/**
+ * Apply any using declarations that appear in the class.
+ * If any using declarations appear in the class that refer to superclass
+ * methods, the superclass header file will be parsed and the used methods
+ * will be brought into the class.
+ */
+void vtkWrap_ApplyUsingDeclarations(
   ClassInfo *data, FileInfo *finfo, HierarchyInfo *hinfo);
 
 /**
@@ -233,7 +247,8 @@ int vtkWrap_CountRequiredArguments(FunctionInfo *f);
  * - "const" is removed except for return values with "&" or "*".
  */
 void vtkWrap_DeclareVariable(
-  FILE *fp, ValueInfo *v, const char *name, int idx, int flags);
+  FILE *fp, ClassInfo *data, ValueInfo *v, const char *name,
+  int idx, int flags);
 
 /**
  * Write an "int" size variable for arrays, initialized to
@@ -242,6 +257,12 @@ void vtkWrap_DeclareVariable(
  */
 void vtkWrap_DeclareVariableSize(
   FILE *fp, ValueInfo *v, const char *name, int idx);
+
+/**
+ * Makes a superclass name into a valid identifier. Returns NULL if the given
+ * name is valid as-is.
+ */
+char *vtkWrap_SafeSuperclassName(const char *name);
 
 
 #ifdef __cplusplus

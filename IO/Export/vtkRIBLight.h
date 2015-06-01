@@ -15,13 +15,14 @@
 // .NAME vtkRIBLight - RIP Light
 // .SECTION Description
 // vtkRIBLight is a subclass of vtkLight that allows the user to
-// specify light source shaders and shadow casting lights for use with RenderMan.
+// specify light source shaders and shadow casting lights for use with
+// RenderMan.
 //
 // .SECTION See Also
-// vtkRIBExporter
+// vtkRIBExporter vtkRIBProperty
 
-#ifndef __vtkRIBLight_h
-#define __vtkRIBLight_h
+#ifndef vtkRIBLight_h
+#define vtkRIBLight_h
 
 #include "vtkIOExportModule.h" // For export macro
 #include "vtkLight.h"

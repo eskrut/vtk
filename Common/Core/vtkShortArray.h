@@ -17,12 +17,16 @@
 // vtkShortArray is an array of values of type short.  It provides
 // methods for insertion and retrieval of values and will
 // automatically resize itself to hold new data.
+//
+// The C++ standard does not define the exact size of the short type,
+// so use of this type directly is discouraged.  If an array of 16 bit
+// integers is needed, prefer vtkTypeInt16Array to this class.
 
-#ifndef __vtkShortArray_h
-#define __vtkShortArray_h
+#ifndef vtkShortArray_h
+#define vtkShortArray_h
 
 // Tell the template header how to give our superclass a DLL interface.
-#if !defined(__vtkShortArray_cxx)
+#if !defined(vtkShortArray_cxx)
 # define VTK_DATA_ARRAY_TEMPLATE_TYPE short
 #endif
 

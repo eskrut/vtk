@@ -30,8 +30,8 @@
 // program failure) may result. Also, you must supply coordinates in all
 // three directions, even if the dataset topology is 2D, 1D, or 0D.
 
-#ifndef __vtkRectilinearGrid_h
-#define __vtkRectilinearGrid_h
+#ifndef vtkRectilinearGrid_h
+#define vtkRectilinearGrid_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkDataSet.h"
@@ -159,7 +159,7 @@ public:
   vtkGetVector6Macro(Extent, int);
 
   // Description:
-  // Return the actual size of the data in kilobytes. This number
+  // Return the actual size of the data in kibibytes (1024 bytes). This number
   // is valid only after the pipeline has updated. The memory size
   // returned is guaranteed to be greater than or equal to the
   // memory required to represent the data (e.g., extra space in

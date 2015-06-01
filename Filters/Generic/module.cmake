@@ -8,7 +8,6 @@ vtk_module(vtkFiltersGeneric
     vtkIOXML
     vtkIOLegacy
     vtkRendering${VTK_RENDERING_BACKEND}
-    vtkRenderingFreeTypeOpenGL
     vtkFiltersModeling
     vtkRenderingLabel
     vtkTestingRendering

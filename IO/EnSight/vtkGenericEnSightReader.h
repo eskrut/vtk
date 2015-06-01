@@ -17,8 +17,8 @@
 // The class vtkGenericEnSightReader allows the user to read an EnSight data
 // set without a priori knowledge of what type of EnSight data set it is.
 
-#ifndef __vtkGenericEnSightReader_h
-#define __vtkGenericEnSightReader_h
+#ifndef vtkGenericEnSightReader_h
+#define vtkGenericEnSightReader_h
 
 #include "vtkIOEnSightModule.h" // For export macro
 #include "vtkMultiBlockDataSetAlgorithm.h"
@@ -235,6 +235,12 @@ protected:
   virtual int RequestData(vtkInformation*,
                           vtkInformationVector**,
                           vtkInformationVector*);
+
+  // Description:
+  // Clear data structures such that setting a new case file name works.
+  // WARNING: Derived classes should call the base version after they clear
+  // their own structures.
+  virtual void ClearForNewCaseFileName();
 
   // Description:
   // Internal function to read in a line up to 256 characters.

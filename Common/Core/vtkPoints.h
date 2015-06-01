@@ -17,8 +17,8 @@
 // vtkPoints represents 3D points. The data model for vtkPoints is an
 // array of vx-vy-vz triplets accessible by (point or cell) id.
 
-#ifndef __vtkPoints_h
-#define __vtkPoints_h
+#ifndef vtkPoints_h
+#define vtkPoints_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -97,7 +97,7 @@ public:
   virtual void ShallowCopy(vtkPoints *ad);
 
   // Description:
-  // Return the memory in kilobytes consumed by this attribute data.
+  // Return the memory in kibibytes (1024 bytes) consumed by this attribute data.
   // Used to support streaming and reading/writing data. The value
   // returned is guaranteed to be greater than or equal to the
   // memory required to actually represent the data represented
@@ -139,6 +139,21 @@ public:
   void InsertPoint(vtkIdType id, double x, double y, double z);
 
   // Description:
+  // Copy the points indexed in srcIds from the source array to the tuple
+  // locations indexed by dstIds in this array.
+  // Note that memory allocation is performed as necessary to hold the data.
+  void InsertPoints(vtkIdList *dstIds, vtkIdList *srcIds, vtkPoints *source)
+    { this->Data->InsertTuples(dstIds, srcIds, source->Data); }
+
+  // Description:
+  // Copy n consecutive points starting at srcStart from the source array to
+  // this array, starting at the dstStart location.
+  // Note that memory allocation is performed as necessary to hold the data.
+  void InsertPoints(vtkIdType dstStart, vtkIdType n, vtkIdType srcStart,
+                    vtkPoints* source)
+    { this->Data->InsertTuples(dstStart, n, srcStart, source->Data); }
+
+  // Description:
   // Insert point into next available slot. Returns id of slot.
   vtkIdType InsertNextPoint(const float x[3])
     { return this->Data->InsertNextTuple(x); }
@@ -172,6 +187,10 @@ public:
   // Description:
   // Return the bounds of the points.
   void GetBounds(double bounds[6]);
+
+  // Description:
+  // The modified time of the points.
+  unsigned long int GetMTime();
 
 protected:
   vtkPoints(int dataType = VTK_FLOAT);

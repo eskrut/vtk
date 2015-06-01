@@ -56,10 +56,7 @@ vtkOBBNode::vtkOBBNode()
 
 vtkOBBNode::~vtkOBBNode()
 {
-  if (this->Kids)
-    {
-    delete [] this->Kids;
-    }
+  delete [] this->Kids;
   if (this->Cells)
     {
     this->Cells->Delete();
@@ -1093,7 +1090,7 @@ void vtkOBBTree::BuildLocator()
 
   vtkDebugMacro(<<"# Cells: " << numCells << ", Deepest tree level: " <<
                 this->Level <<", Created: " << this->OBBCount << " OBB nodes");
-  if ( this->GetDebug() > 1 )
+  if ( this->GetDebug() )
     { // print tree
     double volume = 0.0;
     int minCells = 65535, maxCells = 0;

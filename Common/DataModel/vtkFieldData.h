@@ -37,8 +37,8 @@
 // .SECTION See Also
 // vtkAbstractArray vtkDataSetAttributes vtkPointData vtkCellData
 
-#ifndef __vtkFieldData_h
-#define __vtkFieldData_h
+#ifndef vtkFieldData_h
+#define vtkFieldData_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkObject.h"
@@ -223,7 +223,7 @@ public:
   void Reset();
 
   // Description:
-  // Return the memory in kilobytes consumed by this field data. Used to
+  // Return the memory in kibibytes (1024 bytes) consumed by this field data. Used to
   // support streaming and reading/writing data. The value returned is
   // guaranteed to be greater than or equal to the memory required to
   // actually represent the data represented by this object.

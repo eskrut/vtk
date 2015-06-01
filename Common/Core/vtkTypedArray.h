@@ -41,8 +41,8 @@
 // .SECTION Thanks
 // Developed by Timothy M. Shead (tshead@sandia.gov) at Sandia National Laboratories.
 
-#ifndef __vtkTypedArray_h
-#define __vtkTypedArray_h
+#ifndef vtkTypedArray_h
+#define vtkTypedArray_h
 
 #include "vtkArray.h"
 #include "vtkTypeTemplate.h"
@@ -56,7 +56,7 @@ public:
   typedef typename vtkArray::CoordinateT CoordinateT;
   typedef typename vtkArray::SizeT SizeT;
 
-#if (defined(_MSC_VER) && _MSC_VER < 1400) || defined(__WRAP__)
+#if (defined(_MSC_VER) && _MSC_VER < 1400)
   vtkVariant GetVariantValue(vtkIdType i) { return this->vtkArray::GetVariantValue(i); }
   vtkVariant GetVariantValue(vtkIdType i, vtkIdType j) { return this->vtkArray::GetVariantValue(i,j); }
   vtkVariant GetVariantValue(vtkIdType i, vtkIdType j, vtkIdType k) { return this->vtkArray::GetVariantValue(i,j,k); }

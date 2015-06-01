@@ -111,7 +111,17 @@ int vtkApproximatingSubdivisionFilter::RequestData(
     edgeData->SetNumberOfComponents(3);
     edgeData->SetNumberOfTuples(numCells);
 
-    this->GenerateSubdivisionPoints (inputDS, edgeData, outputPts, outputPD);
+    if (this->GenerateSubdivisionPoints (inputDS, edgeData, outputPts, outputPD) == 0)
+      {
+      outputPts->Delete();
+      outputPD->Delete();
+      outputCD->Delete();
+      outputPolys->Delete();
+      inputDS->Delete();
+      edgeData->Delete();
+      vtkErrorMacro("Subdivision failed.");
+      return 0;
+      }
     this->GenerateSubdivisionCells (inputDS, edgeData, outputPolys, outputCD);
 
     // start the next iteration with the input set to the output we just created
@@ -125,29 +135,9 @@ int vtkApproximatingSubdivisionFilter::RequestData(
     inputDS->Squeeze();
     } // each level
 
-  // Get rid of ghost cells if we have to.
-  unsigned char* ghostLevels=0;
-
-  vtkCellData* cd = inputDS->GetCellData();
-  if (cd)
-    {
-    vtkDataArray* temp = cd->GetArray("vtkGhostLevels");
-    if (temp)
-      {
-      ghostLevels = static_cast<vtkUnsignedCharArray*>(temp)->GetPointer(0);
-      }
-    }
-  int updateGhostLevel = outInfo->Get(
-    vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_GHOST_LEVELS());
-
   output->SetPoints(inputDS->GetPoints());
   output->SetPolys(inputDS->GetPolys());
   output->CopyAttributes(inputDS);
-
-  if (input->GetGhostLevel() > updateGhostLevel && ghostLevels != NULL)
-    {
-    output->RemoveGhostCells(updateGhostLevel+1);
-    }
 
   inputDS->Delete();
 

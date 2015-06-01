@@ -20,14 +20,14 @@
 #include "vtkQtTableRepresentation.h"
 #include "vtkQtTableModelAdapter.h"
 
-#include <vtkAlgorithm.h>
-#include <vtkAlgorithmOutput.h>
-#include <vtkDataSetAttributes.h>
-#include <vtkDoubleArray.h>
-#include <vtkIdTypeArray.h>
-#include <vtkLookupTable.h>
-#include <vtkObjectFactory.h>
-#include <vtkTable.h>
+#include "vtkAlgorithm.h"
+#include "vtkAlgorithmOutput.h"
+#include "vtkDataSetAttributes.h"
+#include "vtkDoubleArray.h"
+#include "vtkIdTypeArray.h"
+#include "vtkLookupTable.h"
+#include "vtkObjectFactory.h"
+#include "vtkTable.h"
 
 #include <QModelIndex>
 #include <QColor>
@@ -66,10 +66,7 @@ vtkQtTableRepresentation::vtkQtTableRepresentation()
 
 vtkQtTableRepresentation::~vtkQtTableRepresentation()
 {
-  if (this->ModelAdapter)
-    {
-    delete this->ModelAdapter;
-    }
+  delete this->ModelAdapter;
   this->ColorTable->UnRegister(this);
   this->SeriesColors->UnRegister(this);
   this->SetKeyColumnInternal(NULL);

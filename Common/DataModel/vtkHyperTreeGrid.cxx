@@ -731,13 +731,19 @@ void vtkHyperTreeGrid::GetCellNeighbors( vtkIdType cellId,
 
   cellIds->Reset();
 
-  int numPts = ptIds->GetNumberOfIds();
+  vtkIdType numPts = ptIds->GetNumberOfIds();
+  if (numPts <= 0)
+    {
+    vtkErrorMacro("input point ids empty.");
+    return;
+    }
+
   int minNumCells = VTK_INT_MAX;
   vtkIdType* pts = ptIds->GetPointer( 0 );
   vtkIdType* minCells = 0;
   vtkIdType minPtId = 0;
   // Find the point used by the fewest number of cells
-  for ( int i = 0; i < numPts; i++ )
+  for ( vtkIdType i = 0; i < numPts; i++ )
     {
     vtkIdType ptId = pts[i];
     int numCells = this->Links->GetNcells( ptId );
@@ -747,12 +753,6 @@ void vtkHyperTreeGrid::GetCellNeighbors( vtkIdType cellId,
       minCells = this->Links->GetCells( ptId );
       minPtId = ptId;
       }
-    }
-
-  if ( minNumCells == VTK_INT_MAX || numPts == 0 )
-    {
-    vtkErrorMacro( "input point ids empty." );
-    return;
     }
 
   cellIds->Allocate( minNumCells );
@@ -768,20 +768,20 @@ void vtkHyperTreeGrid::GetCellNeighbors( vtkIdType cellId,
       vtkIdType npts;
       this->GetCellPoints( minCells[i], npts, cellPts );
       // Iterate over all points in input cell
-      int match = 1;
-      for ( int j = 0; j < numPts && match; j++ )
+      bool match = true;
+      for ( vtkIdType j = 0; j < numPts && match; j++ )
         {
         // Skip point with index minPtId which is contained by current cell
         if ( pts[j] != minPtId )
           {
           // Iterate over all points in current cell
-          int k;
-          for ( match = k = 0; k < npts; ++ k )
+          match = false;
+          for ( vtkIdType k = 0; k < npts; ++ k )
             {
             if ( pts[j] == cellPts[k] )
               {
               // A match was found
-              match = 1;
+              match = true;
               break;
               }
             } // For all points in current cell
@@ -1108,9 +1108,11 @@ void vtkHyperTreeGrid::InitializeSuperCursor( vtkHyperTreeGridSuperCursor* sc,
     case 3:
       lowK = ( k == 0 ) ? 0 : -1;
       highK = ( k + 1 < this->GridSize[2] ) ? 1 : 0;
+      VTK_FALLTHROUGH;
     case 2:
       lowJ = ( j == 0 ) ? 0 : -1;
       highJ = ( j + 1 < this->GridSize[1] ) ? 1 : 0;
+      VTK_FALLTHROUGH;
     case 1:
       lowI = ( i == 0 ) ? 0 : -1;
       highI = ( i + 1 < this->GridSize[0] ) ? 1 : 0;
@@ -1415,7 +1417,7 @@ void vtkHyperTreeGrid::TraverseDualMaskedLeaf(
   vtkHyperTreeSimpleCursor* cursor0 = superCursor->GetCursor( 0 );
 
   // Check across D-face neighbors whether point must be adjusted
-  unsigned int f = 1;
+  int f = 1;
   for ( unsigned int d = 0; d < this->Dimension; ++ d, f *= 3 )
     {
     // For each direction, check both orientations
@@ -1573,7 +1575,7 @@ void vtkHyperTreeGrid::TraverseDualLeaf( vtkHyperTreeGridSuperCursor* superCurso
   //   (D-2)-faces are corners, neighbors are +/-  5, 7, 11, 13
 
   // Check across D-face neighbors whether point must be adjusted
-  unsigned int f = 1;
+  int f = 1;
   for ( unsigned int d = 0; d < this->Dimension; ++ d, f *= 3 )
     {
     // Start at center
@@ -1713,11 +1715,12 @@ void vtkHyperTreeGrid::TraverseDualLeaf( vtkHyperTreeGridSuperCursor* superCurso
       int cursorIdx = 0;
       switch ( this->Dimension )
         {
-        // Warning: Run through is intended! Do NOT add break statements
         case 3:
           cursorIdx += 9 * ( ( ( cornerIdx >> 2 ) & 1 ) + ( ( leafIdx >> 2 ) & 1 ) );
+          VTK_FALLTHROUGH;
         case 2:
           cursorIdx += 3 * ( ( ( cornerIdx >> 1 ) & 1 ) + ( ( leafIdx >> 1 ) & 1 ) );
+          VTK_FALLTHROUGH;
         case 1:
           cursorIdx += ( cornerIdx & 1) + ( leafIdx & 1);
         }

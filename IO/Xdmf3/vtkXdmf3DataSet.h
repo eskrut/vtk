@@ -24,8 +24,8 @@
 // not intended to be part of VTK public API
 // VTK-HeaderTest-Exclude: vtkXdmf3DataSet.h
 
-#ifndef __vtkXdmf3DataSet_h
-#define __vtkXdmf3DataSet_h
+#ifndef vtkXdmf3DataSet_h
+#define vtkXdmf3DataSet_h
 
 #include "vtkIOXdmf3Module.h" // For export macro
 #include "XdmfSharedPtr.hpp"
@@ -126,7 +126,8 @@ public:
   static void VTKToXdmf(
     vtkImageData *dataSet,
     XdmfDomain *domain,
-    bool hasTime, double time);
+    bool hasTime, double time,
+    const char* name = 0);
 
   //vtkXdmf3RectilinearGrid
   // Description:
@@ -151,7 +152,8 @@ public:
   static void VTKToXdmf(
     vtkRectilinearGrid *dataSet,
     XdmfDomain *domain,
-    bool hasTime, double time);
+    bool hasTime, double time,
+    const char* name = 0);
 
   //vtkXdmf3CurvilinearGrid
   // Description:
@@ -176,7 +178,8 @@ public:
   static void VTKToXdmf(
     vtkStructuredGrid *dataSet,
     XdmfDomain *domain,
-    bool hasTime, double time);
+    bool hasTime, double time,
+    const char* name = 0);
 
   //vtkXdmf3UnstructuredGrid
   // Description:
@@ -201,7 +204,8 @@ public:
   static void VTKToXdmf(
     vtkPointSet *dataSet,
     XdmfDomain *domain,
-    bool hasTime, double time);
+    bool hasTime, double time,
+    const char* name = 0);
 
   //vtkXdmf3Graph
   // Description:
@@ -219,7 +223,8 @@ public:
   static void VTKToXdmf(
     vtkDirectedGraph *dataSet,
     XdmfDomain *domain,
-    bool hasTime, double time);
+    bool hasTime, double time,
+    const char* name = 0);
 
 
   //Side Sets

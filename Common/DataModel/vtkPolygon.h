@@ -19,8 +19,8 @@
 // self-intersect. Define the polygon with n-points ordered in the counter-
 // clockwise direction; do not repeat the last point.
 
-#ifndef __vtkPolygon_h
-#define __vtkPolygon_h
+#ifndef vtkPolygon_h
+#define vtkPolygon_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkCell.h"
@@ -87,7 +87,6 @@ public:
   // The function assumes the input point lies on the polygon plane without
   // checking that.
   virtual void InterpolateFunctions(double x[3], double *sf);
-  virtual void InterpolateDerivs(double x[3], double *derivs);
 
   // Description:
   // Polygon specific methods.

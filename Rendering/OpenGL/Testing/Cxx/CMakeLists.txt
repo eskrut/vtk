@@ -13,6 +13,14 @@ vtk_add_test_cxx(${vtk-module}CxxTests render_window_tests
   TestScalarsToColorsPainter.cxx
   TestSetImageOrientation.cxx
   TestTDx.cxx
+  TestValuePainter.cxx,NO_VALID
+  TestValuePasses.cxx
+  )
+vtk_add_test_cxx(${vtk-module}CxxTests render_window_tests
+  TestScalarsToColorsPainterFieldDataCells,TestScalarsToColorsPainterFieldData.cxx -1
+  )
+vtk_add_test_cxx(${vtk-module}CxxTests render_window_tests
+  TestScalarsToColorsPainterFieldDataTuple,TestScalarsToColorsPainterFieldData.cxx 50
   )
 vtk_add_test_cxx(${vtk-module}CxxTests render_window_tests
   TestBlurAndSobelPasses.cxx
@@ -82,7 +90,6 @@ foreach(exe
   add_executable(${exe} ${exe}.cxx)
   target_link_libraries(${exe}
     vtkRenderingOpenGL
-    vtkRenderingFreeTypeOpenGL
     vtkInteractionStyle
     vtkImagingSources
     vtkImagingGeneral

@@ -39,17 +39,6 @@
 #include "vtkTemporalInterpolatedVelocityField.h"
 #include <cassert>
 
-#ifdef WIN32
-#undef JB_H5PART_PARTICLE_OUTPUT
-#else
-//  #define JB_H5PART_PARTICLE_OUTPUT
-#endif
-
-#ifdef JB_H5PART_PARTICLE_OUTPUT
-// #include "vtkH5PartWriter.h"
-#include "vtkXMLParticleWriter.h"
-#endif
-
 #include <functional>
 #include <algorithm>
 #ifdef DEBUGPARTICLETRACE
@@ -91,7 +80,7 @@ namespace
   //return the interval i, such that a belongs to the interval (A[i],A[i+1]]
   inline int FindInterval(double a, const std::vector<double>& A)
   {
-    if( a < A[0])
+    if(A.size() == 0 || a < A[0])
       {
       return -1;
       }
@@ -116,7 +105,7 @@ vtkParticleTracerBase::vtkParticleTracerBase()
                                vtkDataSetAttributes::VECTORS);
 
   this->CurrentTimeStep             = 0;
-  this->CurrentTime                 = 0;
+  this->CurrentTimeValue            = 0;
   this->ForceReinjectionEveryNSteps = 0;
   this->ReinjectionCounter          = 0;
   this->AllFixedGeometry            = 1;
@@ -270,19 +259,6 @@ int vtkParticleTracerBase::RequestInformation(
 
   return 1;
 }
-namespace
-{
-//----------------------------------------------------------------------------
-  class WithinTolerance: public std::binary_function<double, double, bool>
-  {
-  public:
-    result_type operator()(first_argument_type a, second_argument_type b) const
-    {
-      bool result = (fabs(a-b)<=(a*1E-6));
-      return (result_type)result;
-    }
-  };
-}
 
 //----------------------------------------------------------------------------
 int vtkParticleTracerBase::RequestUpdateExtent(
@@ -360,7 +336,7 @@ int vtkParticleTracerBase::RequestUpdateExtent(
     if(!this->HasCache)
       {
       this->CurrentTimeStep = this->StartTimeStep;
-      this->CurrentTime = -DBL_MAX;
+      this->CurrentTimeValue = -DBL_MAX;
       }
     }
 
@@ -373,7 +349,7 @@ int vtkParticleTracerBase::RequestUpdateExtent(
       }
     else
       {
-      Assert(this->CurrentTime == this->InputTimeValues.back());
+      Assert(this->CurrentTimeValue == this->InputTimeValues.back());
       }
     }
 
@@ -591,7 +567,6 @@ bool vtkParticleTracerBase::InsideBounds(double point[])
 void vtkParticleTracerBase::TestParticles(
   ParticleVector &candidates, ParticleVector &passed, int &count)
 {
-
   std::vector<int> passedIndices;
   this->TestParticles(candidates, passedIndices);
   count = static_cast<int>(passedIndices.size());
@@ -666,7 +641,9 @@ void vtkParticleTracerBase::AssignSeedsToProcessors(
     info.age                  = 0.0;
     info.speed                = 0.0;
     info.ErrorCode            = 0;
-    info.PointId = -1;
+    info.SimulationTime       = this->GetCurrentTimeValue();
+    info.PointId              = -1;
+    info.TailPointId          = -1;
     }
   //
   // Gather all Seeds to all processors for classification
@@ -737,7 +714,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
   Assert(this->CurrentTimeStep>=this->StartTimeStep);
 
   double from = this->CurrentTimeStep==this->StartTimeStep? this->StartTime : this->GetCacheDataTime(0);
-  this->CurrentTime =
+  this->CurrentTimeValue =
     this->CurrentTimeStep==this->StartTimeStep? StartTime:
     (this->CurrentTimeStep==this->TerminationTimeStep? this->TerminationTime : this->GetCacheDataTime(1));
 
@@ -793,12 +770,11 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
     this->ParticleRotation->SetName("Rotation");
     this->ParticleAngularVel->SetName("AngularVelocity");
     }
-
+  this->InitializeExtraPointDataArrays(output->GetPointData());
 
   output->SetPoints(this->OutputCoordinates);
   output->SetVerts(this->ParticleCells);
   vtkDebugMacro(<< "Finished allocating point arrays ");
-
 
 ///
   // How many Seed point sources are connected?
@@ -828,7 +804,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
   //
   // Make sure the Particle Positions are initialized with Seed particles
   //
-  if (this->StartTime==this->CurrentTime)
+  if (this->StartTime==this->CurrentTimeValue)
     {
     Assert(!this->HasCache); //shouldn't have cache if restarting
     int seedPointId=0;
@@ -840,7 +816,8 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
 
     for (size_t i=0; i<seedSources.size(); i++)
       {
-      this->AssignSeedsToProcessors(this->CurrentTime,seedSources[i], static_cast<int>(i), 0, this->LocalSeeds, seedPointId);
+      this->AssignSeedsToProcessors(this->CurrentTimeValue,seedSources[i], static_cast<int>(i),
+                                    0, this->LocalSeeds, seedPointId);
       }
 
     this->ParticleInjectionTime.Modified();
@@ -848,7 +825,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
     // Now update our main list with the ones we are keeping
     vtkDebugMacro(<< "Reinjection about to update candidates (" << this->LocalSeeds.size() << " particles)");
     this->UpdateParticleList(this->LocalSeeds);
-    this->ReinjectionCounter += 1;
+    //this->ReinjectionCounter += this->ForceReinjectionEveryNSteps;
     }
 
   if(this->CurrentTimeStep==this->StartTimeStep) //just add all the particles
@@ -870,17 +847,11 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
     ParticleListIterator  it_next;
 
     //
-    // Perform 2 passes
-    // Pass 0 : Integration of particles created by a source in this process
-    // or received at start from a source in another process.
-    //
-    // Pass 1 : Particles that were sent in mid integration from another process
-    // are added in and their integration continued here. In actual fact, the process
-    // should be repeated until all particles are finished, but the chances of
-    // a particle stepping inside and out again through a single domain
-    // in one time step are small (hopefully!)
-#define PASSES 2
-    for (int pass=0; pass<PASSES; pass++)
+    // Perform mulitple passes. The number of passes is equal to one more than
+    // the maximum times a particle gets migrated between processes.
+    bool continueExecuting = true;
+    int pass = 0; // really just for debugging
+    while(continueExecuting)
       {
       vtkDebugMacro(<<"Begin Pass " << pass << " with " << this->ParticleHistories.size() << " Particles");
       for (ParticleListIterator it=it_first; it!=it_last;)
@@ -889,7 +860,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
         // or leaves the domain, the 'current' iterator will be deleted.
         it_next = it;
         it_next++;
-        this->IntegrateParticle(it, from, this->CurrentTime, integrator);
+        this->IntegrateParticle(it, from, this->CurrentTimeValue, integrator);
         if (this->GetAbortExecute())
           {
           break;
@@ -898,7 +869,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
         }
       // Particles might have been deleted during the first pass as they move
       // out of domain or age. Before adding any new particles that are sent
-      // to us, we must know the starting point ready for the second pass
+      // to us, we must know the starting point ready for the next pass
       bool list_valid = (this->ParticleHistories.size()>0);
       if (list_valid)
         {
@@ -906,10 +877,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
         it_first = --this->ParticleHistories.end();
         }
       // Send and receive any particles which exited/entered the domain
-      if (pass<(PASSES-1))
-        {
-        this->UpdateParticleListFromOtherProcesses();
-        }
+      continueExecuting = this->UpdateParticleListFromOtherProcesses();
       it_last = this->ParticleHistories.end();
       if (list_valid)
         {
@@ -920,18 +888,19 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
         {
         it_first = this->ParticleHistories.begin();
         }
+      pass++;
       }//end of pass
     }
 
   bool injectionFlag(false);
-  if (this->CurrentTime!=this->StartTime && this->ForceReinjectionEveryNSteps>0)
+  if (this->CurrentTimeValue!=this->StartTime && this->ForceReinjectionEveryNSteps>0)
     {
     injectionFlag = (this->CurrentTimeStep - this->StartTimeStep)%this->ForceReinjectionEveryNSteps==0;
     }
 
   if(injectionFlag) //reinject again in the last step
     {
-    this->ReinjectionCounter += 1;
+    this->ReinjectionCounter = this->CurrentTimeStep - this->StartTimeStep;
 
     ParticleListIterator lastParticle = this->ParticleHistories.end();
     if (!this->ParticleHistories.empty())
@@ -942,7 +911,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
     this->LocalSeeds.clear();
     for (size_t i=0; i<seedSources.size(); i++)
       {
-      this->AssignSeedsToProcessors(this->CurrentTime,seedSources[i], static_cast<int>(i), 0, this->LocalSeeds, seedPointId);
+      this->AssignSeedsToProcessors(this->CurrentTimeValue,seedSources[i], static_cast<int>(i), 0, this->LocalSeeds, seedPointId);
       }
     this->ParticleInjectionTime.Modified();
     this->UpdateParticleList(this->LocalSeeds);
@@ -959,11 +928,10 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
 
     for(; itr!=this->ParticleHistories.end(); ++itr)
       {
-      ParticleInformation& info(*lastParticle);
-      this->Interpolator->TestPoint(info.CurrentPosition.x);
+      this->Interpolator->TestPoint(itr->CurrentPosition.x);
       double velocity[3];
       this->Interpolator->GetLastGoodVelocity(velocity);
-      info.speed = vtkMath::Norm(velocity);
+      itr->speed = vtkMath::Norm(velocity);
       this->AddParticle(*itr,velocity);
       }
     }
@@ -987,7 +955,7 @@ vtkPolyData* vtkParticleTracerBase::Execute(vtkInformationVector** inputVector)
   // save some locator building, by re-using them as time progresses
   this->Interpolator->AdvanceOneTimeStep();
 
-  output->GetInformation()->Set(vtkDataObject::DATA_TIME_STEP(), this->CurrentTime);
+  output->GetInformation()->Set(vtkDataObject::DATA_TIME_STEP(), this->CurrentTimeValue);
   this->ExecuteTime.Modified();
   this->HasCache = true;
   PRINT("Output "<<output->GetNumberOfPoints()<<" particles, "<<this->ParticleHistories.size()<<" in cache");
@@ -1006,7 +974,7 @@ int vtkParticleTracerBase::RequestData(
   vtkInformationVector **inputVector,
   vtkInformationVector *outputVector)
 {
-  PRINT("RD start: "<<this->CurrentTimeStep<<" "<<this->CurrentTime<<" "<<this->StartTimeStep<<" "<<this->TerminationTimeStep);
+  PRINT("RD start: "<<this->CurrentTimeStep<<" "<<this->CurrentTimeValue<<" "<<this->StartTimeStep<<" "<<this->TerminationTimeStep);
   if(this->StartTimeStep<0)
     {
     return 0;
@@ -1015,7 +983,7 @@ int vtkParticleTracerBase::RequestData(
   vtkInformation *outInfo = outputVector->GetInformationObject(0);
   vtkInformation    *inInfo = inputVector[0]->GetInformationObject(0);
 
-  if(this->HasCache && this->CurrentTime == this->TerminationTime)
+  if(this->HasCache && this->CurrentTimeValue == this->TerminationTime)
     {
     vtkDataObject* out = outInfo->Get(vtkDataObject::DATA_OBJECT());
     out->ShallowCopy(this->Output);
@@ -1025,7 +993,7 @@ int vtkParticleTracerBase::RequestData(
     }
 
   bool finished = this->CurrentTimeStep==this->TerminationTimeStep;
-  ProcessInput(inputVector);
+  this->ProcessInput(inputVector);
 
   if(this->FirstIteration)
     {
@@ -1097,12 +1065,6 @@ void vtkParticleTracerBase::IntegrateParticle(
   // Get the Initial point {x,y,z,t}
   memcpy(point1, &info.CurrentPosition, sizeof(Position));
 
-  //
-  // begin interpolation between available time values, if the particle has
-  // a cached cell ID and dataset - try to use it,
-  //
-  this->Interpolator->SetCachedCellIds(info.CachedCellId, info.CachedDataSetId);
-
   if(currenttime==targettime)
     {
     Assert(point1[3]==currenttime);
@@ -1110,6 +1072,19 @@ void vtkParticleTracerBase::IntegrateParticle(
   else
     {
     Assert (point1[3]>=(currenttime-epsilon) && point1[3]<=(targettime+epsilon));
+
+    //
+    // begin interpolation between available time values, if the particle has
+    // a cached cell ID and dataset - try to use it,
+    //
+    if(this->AllFixedGeometry)
+      {
+      this->Interpolator->SetCachedCellIds(info.CachedCellId, info.CachedDataSetId);
+      }
+    else
+      {
+      this->Interpolator->ClearCache();
+      }
 
     double delT = (targettime-currenttime) * this->IntegrationStep;
     epsilon = delT*1E-3;
@@ -1141,9 +1116,9 @@ void vtkParticleTracerBase::IntegrateParticle(
         info.ErrorCode = 1;
         if (!this->RetryWithPush(info, point1, delT, substeps))
           {
-          if(previous.PointId <0)
+          if(previous.PointId <0 && previous.TailPointId < 0)
             {
-            vtkWarningMacro("the particle should have been added");
+            vtkErrorMacro("the particle should have been added");
             }
           else
             {
@@ -1167,6 +1142,7 @@ void vtkParticleTracerBase::IntegrateParticle(
         // increment the particle time
         point2[3] = point1[3] + stepTaken;
         info.age += stepTaken;
+        info.SimulationTime += stepTaken;
 
         // Point is valid. Insert it.
         memcpy(&info.CurrentPosition, point2, sizeof(Position));
@@ -1419,6 +1395,12 @@ bool vtkParticleTracerBase::SetTerminationTimeNoModify(double t)
 }
 
 //---------------------------------------------------------------------------
+vtkTemporalInterpolatedVelocityField* vtkParticleTracerBase::GetInterpolator()
+{
+  return this->Interpolator;
+}
+
+//---------------------------------------------------------------------------
 void vtkParticleTracerBase::SetTerminationTime(double t)
 {
   if (this->SetTerminationTimeNoModify(t))
@@ -1504,6 +1486,7 @@ bool vtkParticleTracerBase::RetryWithPush(
   info.CurrentPosition.x[3] += delT;
   info.LocationState = this->Interpolator->TestPoint(info.CurrentPosition.x);
   info.age += delT;
+  info.SimulationTime += delT; // = this->GetCurrentTimeValue();
 
   if (info.LocationState!=ID_OUTSIDE_ALL)
     {
@@ -1529,7 +1512,9 @@ void vtkParticleTracerBase::AddParticle(
   this->InjectedStepIds->InsertNextValue(info.InjectedStepId);
   this->ErrorCode->InsertNextValue(info.ErrorCode);
   this->ParticleAge->InsertNextValue(info.age);
+  this->AppendToExtraPointDataArrays(info);
   info.PointId = tempId;
+  info.TailPointId = -1;
 
   //
   // Interpolate all existing point attributes

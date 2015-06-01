@@ -38,8 +38,8 @@
 // .SECTION See Also
 // vtkDataArray vtkStringArray vtkCellArray
 
-#ifndef __vtkAbstractArray_h
-#define __vtkAbstractArray_h
+#ifndef vtkAbstractArray_h
+#define vtkAbstractArray_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -59,6 +59,8 @@ class vtkVariantArray;
 class VTKCOMMONCORE_EXPORT vtkAbstractArray : public vtkObject
 {
 public:
+  friend class vtkDataArrayTemplateHelper;
+
   vtkTypeMacro(vtkAbstractArray,vtkObject);
   void PrintSelf(ostream& os, vtkIndent indent);
 
@@ -145,6 +147,13 @@ public:
   // locations indexed by dstIds in this array.
   // Note that memory allocation is performed as necessary to hold the data.
   virtual void InsertTuples(vtkIdList *dstIds, vtkIdList *srcIds,
+                            vtkAbstractArray* source) = 0;
+
+  // Description:
+  // Copy n consecutive tuples starting at srcStart from the source array to
+  // this array, starting at the dstStart location.
+  // Note that memory allocation is performed as necessary to hold the data.
+  virtual void InsertTuples(vtkIdType dstStart, vtkIdType n, vtkIdType srcStart,
                             vtkAbstractArray* source) = 0;
 
   // Description:
@@ -261,7 +270,7 @@ public:
   virtual void ExportToVoidPointer(void *vtkNotUsed(out_ptr)) {}
 
   // Description:
-  // Return the memory in kilobytes consumed by this data array. Used to
+  // Return the memory in kibibytes (1024 bytes) consumed by this data array. Used to
   // support streaming and reading/writing data. The value returned is
   // guaranteed to be greater than or equal to the memory required to
   // actually represent the data represented by this object. The

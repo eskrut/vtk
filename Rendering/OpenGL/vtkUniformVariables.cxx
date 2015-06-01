@@ -73,10 +73,7 @@ public:
         {
         return;
         }
-      if(this->Name!=0)
-        {
-        delete[] this->Name;
-        }
+      delete[] this->Name;
       if(n!=0) // copy
         {
          size_t l=strlen(n)+1;
@@ -91,10 +88,7 @@ public:
 
   virtual ~vtkUniform()
     {
-      if(this->Name!=0)
-        {
-        delete[] Name;
-        }
+      delete[] Name;
     }
 
   virtual void Send(int location)=0;
@@ -688,10 +682,7 @@ public:
       while(i!=e)
         {
         vtkUniform *u=(*i).second;
-        if(u!=0)
-          {
-          delete u;
-          }
+        delete u;
         ++i;
         }
     }
@@ -1107,26 +1098,25 @@ void vtkUniformVariables::Next()
 // \pre not_self: other!=this
 void vtkUniformVariables::Merge(vtkUniformVariables *other)
 {
-  assert("pre: other_exists" && other!=0);
-  assert("pre: not_self" && other!=this);
+  assert("pre: other_exists" && other != 0);
+  assert("pre: not_self" && other != this);
 
   other->Start();
-  while(!other->IsAtEnd())
+  while (!other->IsAtEnd())
     {
-    const char *name=other->GetCurrentName();
-    UniformMapIt cur=other->Map->Map.find(name);
+    const char *name = other->GetCurrentName();
+    UniformMapIt prev = this->Map->Map.find(name);
+    if (prev != this->Map->Map.end())
+      {
+      delete prev->second;
+      this->Map->Map.erase(prev);
+      }
+    vtkUniform* clone = other->Map->It->second->Clone();
+    this->Map->Map[clone->GetName()] = clone;
 
-    vtkUniform *u1=(*cur).second;
-
-    vtkUniform *u2=u1->Clone();
-    vtksys_stl::pair<const char *, vtkUniform *> p;
-    p.first=u2->GetName();
-    p.second=u2;
-    this->Map->Map.erase(p.first);
-    this->Map->Map.insert(p);
     other->Next();
     }
-  if(other->Map->Map.size()>0)
+  if (other->Map->Map.size() > 0)
     {
     this->Modified();
     }

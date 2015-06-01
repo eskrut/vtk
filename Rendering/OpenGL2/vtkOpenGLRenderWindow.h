@@ -19,8 +19,8 @@
 // library. Application programmers should normally use vtkRenderWindow
 // instead of the OpenGL specific version.
 
-#ifndef __vtkOpenGLRenderWindow_h
-#define __vtkOpenGLRenderWindow_h
+#ifndef vtkOpenGLRenderWindow_h
+#define vtkOpenGLRenderWindow_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkRenderWindow.h"
@@ -30,18 +30,28 @@
 
 class vtkIdList;
 class vtkOpenGLHardwareSupport;
-class vtkOpenGLTextureUnitManager;
+class vtkTextureUnitManager;
 class vtkOpenGLShaderCache;
 class vtkStdString;
 class vtkTexture;
-class vtkTexturedActor2D;
 class vtkTextureObject;
+class vtkShaderProgram;
+
+namespace vtkgl
+{
+class VertexArrayObject;
+}
 
 class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLRenderWindow : public vtkRenderWindow
 {
 public:
   vtkTypeMacro(vtkOpenGLRenderWindow, vtkRenderWindow);
   void PrintSelf(ostream& os, vtkIndent indent);
+
+  // Description:
+  // Overridden to release resources that would interfere with an external
+  // application's rendering.
+  void Render();
 
   // Description:
   // Set/Get the maximum number of multisamples
@@ -125,6 +135,11 @@ public:
   // Initialize VTK for rendering in a new OpenGL context
   virtual void OpenGLInitContext();
 
+  // Description::
+  // Get if the context includes opengl core profile 3.2 support
+  static bool GetContextSupportsOpenGL32();
+  void SetContextSupportsOpenGL32(bool val);
+
   // Description:
   // Return the OpenGL name of the back left buffer.
   // It is GL_BACK_LEFT if GL is bound to the window-system-provided
@@ -188,17 +203,48 @@ public:
   // Returns an Shader Cache object
   vtkGetObjectMacro(ShaderCache,vtkOpenGLShaderCache);
 
-  //BTX
   // Description:
   // Returns its texture unit manager object. A new one will be created if one
   // hasn't already been set up.
-  vtkOpenGLTextureUnitManager *GetTextureUnitManager();
-  //ETX
+  vtkTextureUnitManager *GetTextureUnitManager();
 
   // Description:
   // Block the thread until the actual rendering is finished().
   // Useful for measurement only.
   virtual void WaitForCompletion();
+
+  // Description:
+  // Helper function that draws a quad on the screen
+  // at the specified vertex coordinates and if
+  // tcoords are not NULL with the specified
+  // texture coordinates.
+  static void RenderQuad(
+    float *verts, float *tcoords,
+    vtkShaderProgram *program, vtkgl::VertexArrayObject *vao);
+  static void RenderTriangles(
+    float *verts, unsigned int numVerts,
+    GLuint *indices, unsigned int numIndices,
+    float *tcoords,
+    vtkShaderProgram *program, vtkgl::VertexArrayObject *vao);
+
+  // Description:
+  // Replacement for the old glDrawPixels function
+  virtual void DrawPixels(int x1, int y1, int x2, int y2,
+              int numComponents, int dataType, void *data);
+
+  // Description:
+  // Replacement for the old glDrawPixels function, but it allows
+  // for scaling the data and using only part of the texture
+  virtual void DrawPixels(
+    int dstXmin, int dstYmin, int dstXmax, int dstYmax,
+    int srcXmin, int srcYmin, int srcXmax, int srcYmax,
+    int srcWidth, int srcHeight, int numComponents, int dataType, void *data);
+
+  // Description:
+  // Replacement for the old glDrawPixels function.  This simple version draws all
+  // the data to the entire current viewport scaling as needed.
+  virtual void DrawPixels(
+    int srcWidth, int srcHeight, int numComponents, int dataType, void *data);
 
 protected:
   vtkOpenGLRenderWindow();
@@ -208,9 +254,7 @@ protected:
 
   long OldMonitorSetting;
 
-  //BTX
   std::map<const vtkTextureObject *, int> TextureResourceIds;
-  //ETX
 
   int GetPixelData(int x, int y, int x2, int y2, int front, unsigned char* data);
   int GetRGBAPixelData(int x, int y, int x2, int y2, int front, float* data);
@@ -238,6 +282,13 @@ protected:
   int OffScreenUseFrameBuffer;
 
   // Description:
+  // Variables used by the framebuffer-based offscreen method.
+  int NumberOfFrameBuffers;
+  unsigned int TextureObjects[4]; // really GLuint
+  unsigned int FrameBufferObject; // really GLuint
+  unsigned int DepthRenderBufferObject; // really GLuint
+
+  // Description:
   // Create a not-off-screen window.
   virtual void CreateAWindow() = 0;
 
@@ -251,7 +302,18 @@ protected:
 
   // Description:
   // Set the texture unit manager.
-  void SetTextureUnitManager(vtkOpenGLTextureUnitManager *textureUnitManager);
+  void SetTextureUnitManager(vtkTextureUnitManager *textureUnitManager);
+
+
+  // Description:
+  // Query and save OpenGL state
+  void SaveGLState();
+
+  // Description:
+  // Restore OpenGL state at end of the rendering
+  void RestoreGLState();
+
+  std::map<std::string, int> GLStateIntegers;
 
   unsigned int BackLeftBuffer;
   unsigned int BackRightBuffer;
@@ -273,13 +335,9 @@ protected:
 
   vtkTimeStamp ContextCreationTime;
 
-  vtkOpenGLTextureUnitManager *TextureUnitManager;
+  vtkTextureUnitManager *TextureUnitManager;
 
-  vtkTexturedActor2D *DrawPixelsActor;
-
-  // Description:
-  // Replacement for the old glDrawPixels function
-  void DrawPixels(int x1, int y1, int x2, int y2, int numComponents, int dataType, void *data);
+  vtkTextureObject *DrawPixelsTextureObject;
 
   bool Initialized; // ensure glewinit has been called
 

@@ -708,20 +708,14 @@ void CommunicationManager::Clear()
   std::map<int,unsigned char*>::iterator it;
   for(it=this->Send.begin(); it != this->Send.end(); ++it)
     {
-    if( it->second != NULL )
-      {
-      delete [] it->second;
-      } // END if
-    } // END for
+    delete [] it->second;
+    }
   this->Send.clear();
 
   for(it=this->Rcv.begin(); it != this->Rcv.end(); ++it)
     {
-    if( it->second != NULL)
-      {
-      delete [] it->second;
-      } // END if
-    } // END for
+    delete [] it->second;
+    }
   this->Rcv.clear();
 }
 
@@ -796,7 +790,10 @@ void CommunicationManager::AllocateRcvBuffers(vtkMPIController* comm)
     }
 
   // STEP 3: WaitAll
-  comm->WaitAll(this->NumMsgs(),&this->Requests[0]);
+  if (!this->Requests.empty())
+    {
+    comm->WaitAll(this->NumMsgs(),&this->Requests[0]);
+    }
   this->Requests.clear();
 
   // STEP 4: Allocate rcv buffers
@@ -848,7 +845,10 @@ void CommunicationManager::Exchange(vtkMPIController* comm)
     }
 
   // STEP 4: WaitAll
-  comm->WaitAll(this->NumMsgs(),&this->Requests[0]);
+  if (!this->Requests.empty())
+    {
+    comm->WaitAll(this->NumMsgs(),&this->Requests[0]);
+    }
   this->Requests.clear();
 }
 
@@ -874,11 +874,8 @@ vtkStructuredImplicitConnectivity::vtkStructuredImplicitConnectivity()
 //------------------------------------------------------------------------------
 vtkStructuredImplicitConnectivity::~vtkStructuredImplicitConnectivity()
 {
-  if( this->DomainInfo != NULL )
-    {
-    delete this->DomainInfo;
-    this->DomainInfo = NULL;
-    }
+  delete this->DomainInfo;
+  this->DomainInfo = NULL;
 
   if( this->InputGrid != NULL )
     {
@@ -945,10 +942,7 @@ void vtkStructuredImplicitConnectivity::PrintSelf(ostream& os,vtkIndent indent)
 //------------------------------------------------------------------------------
 void vtkStructuredImplicitConnectivity::SetWholeExtent(int wholeExt[6])
 {
-  if( this->DomainInfo != NULL )
-    {
-    delete this->DomainInfo;
-    }
+  delete this->DomainInfo;
 
   this->DomainInfo = new vtk::detail::DomainMetaData();
   this->DomainInfo->Initialize(wholeExt);
@@ -969,16 +963,18 @@ void vtkStructuredImplicitConnectivity::RegisterGrid(
           (this->DomainInfo != NULL) );
   assert("pre: input not NULL in this process!" &&
           (this->InputGrid == NULL) );
-  assert("pre: input grid is not within domain!" &&
-          (this->DomainInfo->HasGrid(extent)));
   assert("pre: input grid ID should be >= 0" && (gridID >= 0) );
 
+  delete this->InputGrid;
+  this->InputGrid = NULL;
 
-  this->InputGrid = new vtk::detail::StructuredGrid();
-  this->InputGrid->Initialize(gridID,extent,gridNodes,pointData);
-
-  assert("post: grid DataDescription does not match domain DataDescription" &&
-        (this->DomainInfo->DataDescription==this->InputGrid->DataDescription));
+  // Only add if the grid falls within the output extent. Processes that do
+  // not contain the VOI will fail this test.
+  if (this->DomainInfo->HasGrid(extent))
+    {
+    this->InputGrid = new vtk::detail::StructuredGrid();
+    this->InputGrid->Initialize(gridID,extent,gridNodes,pointData);
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -995,15 +991,19 @@ void vtkStructuredImplicitConnectivity::RegisterRectilinearGrid(
           (this->DomainInfo != NULL) );
   assert("pre: input not NULL in this process!" &&
           (this->InputGrid == NULL) );
-  assert("pre: input grid is not within domain!" &&
-          (this->DomainInfo->HasGrid(extent)));
   assert("pre: input grid ID should be >= 0" && (gridID >= 0) );
 
-  this->InputGrid = new vtk::detail::StructuredGrid();
-  this->InputGrid->Initialize(gridID,extent,xcoords,ycoords,zcoords,pointData);
+  delete this->InputGrid;
+  this->InputGrid = NULL;
 
-  assert("post: grid DataDescription does not match domain DataDescription" &&
-         (this->DomainInfo->DataDescription==this->InputGrid->DataDescription));
+  // Only add if the grid falls within the output extent. Processes that do
+  // not contain the VOI will fail this test.
+  if (this->DomainInfo->HasGrid(extent))
+    {
+    this->InputGrid = new vtk::detail::StructuredGrid();
+    this->InputGrid->Initialize(gridID, extent, xcoords, ycoords, zcoords,
+                                pointData);
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -1039,6 +1039,11 @@ void vtkStructuredImplicitConnectivity::ExchangeExtents()
 //------------------------------------------------------------------------------
 void vtkStructuredImplicitConnectivity::ComputeNeighbors()
 {
+  if (!this->InputGrid)
+    {
+    return;
+    }
+
   int type;
   vtk::detail::Interval A; // used to store the local interval at each dim
   vtk::detail::Interval B; // used to store the remote interval at each dim
@@ -1367,7 +1372,6 @@ void vtkStructuredImplicitConnectivity::PackData(
   else
     {
     bytestream << VTK_UNIFORM_GRID;
-    bytestream << 0;
     }
 
   // serialize the node-centered fields

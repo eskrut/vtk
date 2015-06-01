@@ -33,8 +33,8 @@ PURPOSE.  See the above copyright notice for more information.
 // * Assess: not implemented.
 // * Test: not implemented.
 
-#ifndef __vtkHighestDensityRegionsStatistics_h
-#define __vtkHighestDensityRegionsStatistics_h
+#ifndef vtkHighestDensityRegionsStatistics_h
+#define vtkHighestDensityRegionsStatistics_h
 
 #include "vtkFiltersStatisticsModule.h" // For export macro
 #include "vtkStatisticsAlgorithm.h"
@@ -69,6 +69,22 @@ public:
   vtkGetVectorMacro(SmoothHC2, double, 2);
   vtkSetVectorMacro(SmoothHC2, double, 2);
 
+  // Description:
+  // Fill outDensity with density vector that is computed from
+  // inObservations values. This method uses a Gaussian kernel.
+  // For n observations and with X an observation point:
+  // f(X) = (1 / n) * Sum(KH(X -Xi)) for (i = 1 to n).
+  // Look ComputeSmoothGaussianKernel for KH kernel definition.
+  double ComputeHDR(vtkDataArray *inObservations, vtkDataArray *outDensity);
+
+  // Description:
+  // Fill outDensity with density vector defined by inPOI and computed from
+  // the inObs values. This method uses a Gaussian kernel.
+  // For n observations and with X an observation point:
+  // f(X) = (1 / n) * Sum(KH(X -Xi)) for (i = 1 to n).
+  // Look ComputeSmoothGaussianKernel for KH kernel definition.
+  double ComputeHDR(vtkDataArray *inObs, vtkDataArray* inPOI,
+                    vtkDataArray *outDensity);
 protected:
   vtkHighestDensityRegionsStatistics();
   ~vtkHighestDensityRegionsStatistics();
@@ -103,14 +119,6 @@ protected:
                                    vtkStringArray*,
                                    AssessFunctor*&) { return; }
 //ETX
-
-  // Description:
-  // Fill outDensity with density vector that is computed from
-  // inObservations values. This method uses a Gaussian kernel.
-  // For n observations and with X an observation point:
-  // f(X) = (1 / n) * Sum(KH(X -Xi)) for (i = 1 to n).
-  // Look ComputeSmoothGaussianKernel for KH kernel definition.
-  double ComputeHDR(vtkDataArray *inObservations, vtkDataArray *outDensity);
 
   // Description:
   // Store the smooth matrix parameter H. Specify a smooth direction

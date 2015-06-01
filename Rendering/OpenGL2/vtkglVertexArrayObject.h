@@ -11,8 +11,8 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkglVertexArrayObject_h
-#define __vtkglVertexArrayObject_h
+#ifndef vtkglVertexArrayObject_h
+#define vtkglVertexArrayObject_h
 
 #include "vtkRenderingOpenGL2Module.h"
 #include <string> // For API.
@@ -50,9 +50,28 @@ public:
 
   bool AddAttributeArray(vtkShaderProgram *program, BufferObject &buffer,
                          const std::string &name, int offset, size_t stride,
-                         int elementType, int elementTupleSize, bool normalize);
+                         int elementType, int elementTupleSize, bool normalize)
+    {
+    return this->AddAttributeArrayWithDivisor(program, buffer, name,
+      offset,stride,elementType, elementTupleSize, normalize, 0, false);
+    }
+
+  bool AddAttributeArrayWithDivisor(vtkShaderProgram *program, BufferObject &buffer,
+                         const std::string &name, int offset, size_t stride,
+                         int elementType, int elementTupleSize, bool normalize,
+                         int divisor, bool isMatrix);
+
+  bool AddAttributeMatrixWithDivisor(vtkShaderProgram *program, BufferObject &buffer,
+                         const std::string &name, int offset, size_t stride,
+                         int elementType, int elementTupleSize, bool normalize,
+                         int divisor);
 
   bool RemoveAttributeArray(const std::string &name);
+
+  // Force this VAO to emulate a vertex aray object even if
+  // the system supports VAOs. This can be useful in cases where
+  // the vertex array object does not handle all extensions.
+  void SetForceEmulation(bool val);
 
 private:
   class Private;
@@ -61,4 +80,6 @@ private:
 
 } // End of vtkgl namespace
 
-#endif // __vtkglVertexArrayObject_h
+#endif // vtkglVertexArrayObject_h
+
+// VTK-HeaderTest-Exclude: vtkglVertexArrayObject.h

@@ -21,8 +21,8 @@
 // .SECTION See Also
 // vtkPlotPoints vtkPlotLine vtkPlotBar vtkChart vtkChartXY
 
-#ifndef __vtkPlot_h
-#define __vtkPlot_h
+#ifndef vtkPlot_h
+#define vtkPlot_h
 
 #include "vtkChartsCoreModule.h" // For export macro
 #include "vtkContextItem.h"
@@ -131,6 +131,18 @@ public:
   vtkBrush* GetBrush();
 
   // Description:
+  // Set/get the vtkBrush object that controls how this plot fills selected
+  // shapes.
+  void SetSelectionPen(vtkPen *pen);
+  vtkPen* GetSelectionPen();
+
+  // Description:
+  // Set/get the vtkBrush object that controls how this plot fills selected
+  // shapes.
+  void SetSelectionBrush(vtkBrush *brush);
+  vtkBrush* GetSelectionBrush();
+
+  // Description:
   // Set the label of this plot.
   virtual void SetLabel(const vtkStdString &label);
 
@@ -198,6 +210,19 @@ public:
   // column in the vtkTable.
   virtual void SetInputArray(int index, const vtkStdString &name);
 
+  // Description:
+  // Set whether the plot can be selected. True by default.
+  // If not, then SetSelection(), SelectPoints() or SelectPointsInPolygon()
+  // won't have any effect.
+  // \sa SetSelection(), SelectPoints(), SelectPointsInPolygon()
+  vtkSetMacro(Selectable,bool);
+  vtkGetMacro(Selectable,bool);
+  vtkBooleanMacro(Selectable,bool);
+
+  // Description:
+  // Sets the list of points that must be selected.
+  // If Selectable is false, then this method does nothing.
+  // \sa SetSelectable()
   virtual void SetSelection(vtkIdTypeArray *id);
   vtkGetObjectMacro(Selection, vtkIdTypeArray);
 
@@ -256,6 +281,13 @@ public:
     return this->GetBounds(bounds);
     }
 
+  // Description:
+  // Subclasses that build data caches to speed up painting should override this
+  // method to update such caches. This is called on each Paint, hence
+  // subclasses must add checks to avoid rebuilding of cache, unless necessary.
+  // Default implementation is empty.
+  virtual void UpdateCache() {}
+
 //BTX
   // Description:
   // A General setter/getter that should be overridden. It can silently drop
@@ -282,6 +314,16 @@ protected:
   vtkSmartPointer<vtkBrush> Brush;
 
   // Description:
+  // This object stores the vtkPen that controls how the selected elements
+  // of the plot are drawn.
+  vtkSmartPointer<vtkPen> SelectionPen;
+
+  // Description:
+  // This object stores the vtkBrush that controls how the selected elements
+  // of the plot are drawn.
+  vtkSmartPointer<vtkBrush> SelectionBrush;
+
+  // Description:
   // Plot labels, used by legend.
   vtkSmartPointer<vtkStringArray> Labels;
 
@@ -302,6 +344,10 @@ protected:
   // This data member contains the data that will be plotted, it inherits
   // from vtkAlgorithm.
   vtkSmartPointer<vtkContextMapper2D> Data;
+
+  // Description:
+  // Whether plot points can be selected or not.
+  bool Selectable;
 
   // Description:
   // Selected indices for the table the plot is rendering
@@ -339,4 +385,4 @@ private:
 //ETX
 };
 
-#endif //__vtkPlot_h
+#endif //vtkPlot_h

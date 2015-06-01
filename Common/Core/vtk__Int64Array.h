@@ -17,12 +17,17 @@
 // vtk__Int64Array is an array of values of type __int64.
 // It provides methods for insertion and retrieval of values and will
 // automatically resize itself to hold new data.
+//
+// This class is intended to give an array of 64 bit integers on systems
+// where __int64 is the only 64 bit integer type.  If an array of 64 bit
+// integers is needed, prefer vtkTypeInt64Array, which will always uses
+// the system's most appropriate datatype for 64 bit integers.
 
-#ifndef __vtk__Int64Array_h
-#define __vtk__Int64Array_h
+#ifndef vtk__Int64Array_h
+#define vtk__Int64Array_h
 
 // Tell the template header how to give our superclass a DLL interface.
-#if !defined(__vtk__Int64Array_cxx)
+#if !defined(vtk__Int64Array_cxx)
 # define VTK_DATA_ARRAY_TEMPLATE_TYPE __int64
 #endif
 

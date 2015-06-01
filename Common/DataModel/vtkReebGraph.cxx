@@ -117,7 +117,13 @@ if (a->ArcDwId1) this->GetArc(a->ArcDwId1)->ArcUpId1=a->ArcUpId1;\
 if (nstack==mstack)\
 {\
   mstack=vtkReebGraphMax(128,mstack*2);\
+  int *oldstack = stack;\
   stack=(int*)realloc(stack,sizeof(int)*mstack);\
+  if (!stack)\
+  {\
+    free(oldstack);\
+    assert(0 && "Ran out of memory");\
+  }\
 } \
 stack[nstack++]=(N);\
 }
@@ -1054,15 +1060,15 @@ vtkReebGraph::Implementation::vtkReebPath vtkReebGraph::Implementation::FindPath
         if (M==N1)
         {
           //clear all the items in the priority queue
-          while (pq.size())
+          while (!pq.empty())
           {
             vtkReebPath aux=pq.top();pq.pop();
             delete aux.ArcTable;
             delete aux.NodeTable;
           }
 
-          if (Ntouch) free(Ntouch);
-          if (Atouch) free(Atouch);
+          free(Ntouch);
+          free(Atouch);
 
           vtkIdType* tmp=new vtkIdType[entry.NodeNumber+1];
           memcpy(tmp,entry.NodeTable,sizeof(vtkIdType)*entry.NodeNumber);

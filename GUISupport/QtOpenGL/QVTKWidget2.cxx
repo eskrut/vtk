@@ -152,6 +152,7 @@ void QVTKWidget2::SetRenderWindow(vtkGenericOpenGLRenderWindow* w)
 
   if(this->mRenWin)
     {
+    this->SetMultiSamples(this->mRenWin->GetGlobalMaximumNumberOfMultiSamples());
     // if it is mapped somewhere else, unmap it
     this->mRenWin->Finalize();
     this->mRenWin->SetMapped(1);
@@ -268,6 +269,26 @@ void QVTKWidget2::paintGL()
     }
 
   iren->Render();
+}
+
+/*! handle touch events
+ */
+bool QVTKWidget2::event(QEvent* e)
+{
+  if(e->type() == QEvent::TouchBegin ||
+          e->type() == QEvent::TouchUpdate ||
+          e->type() == QEvent::TouchEnd)
+    {
+    if(this->mRenWin)
+      {
+      mIrenAdapter->ProcessEvent(e, this->mRenWin->GetInteractor());
+      if (e->isAccepted())
+        {
+        return true;
+        }
+      }
+    }
+  return QObject::event(e);
 }
 
 /*! handle mouse press event
@@ -449,6 +470,22 @@ void QVTKWidget2::Frame()
   // 4. implement the callback on the observer to call updateGL() on this widget
   // 5. overload QVTKWidget2::paintGL() to call mRenWin->Render() instead iren->Render()
 
+}
+
+void QVTKWidget2::SetMultiSamples(int multiSamples)
+{
+  QGLFormat newform = this->format();
+  newform.setSamples(multiSamples);
+  this->setFormat(newform);
+  if(this->mRenWin)
+    {
+    this->mRenWin->SetMultiSamples(multiSamples);
+    }
+}
+
+int QVTKWidget2::GetMultiSamples() const
+{
+  return this->format().samples();
 }
 
 void QVTKWidget2::setAutoBufferSwap(bool f)

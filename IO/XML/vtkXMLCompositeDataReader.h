@@ -23,8 +23,8 @@
 // number of processors, each processor will possibly have more than
 // 1 sub-block.
 
-#ifndef __vtkXMLCompositeDataReader_h
-#define __vtkXMLCompositeDataReader_h
+#ifndef vtkXMLCompositeDataReader_h
+#define vtkXMLCompositeDataReader_h
 
 #include "vtkIOXMLModule.h" // For export macro
 #include "vtkXMLReader.h"
@@ -97,17 +97,6 @@ protected:
   // Given the inorder index for a leaf node, this method tells if the current
   // process should read the dataset.
   int ShouldReadDataSet(unsigned int datasetIndex);
-
-  // Description:
-  // Test if the reader can read a file with the given version number.
-  virtual int CanReadFileVersion(int major, int vtkNotUsed(minor))
-    {
-    if (major > 1)
-      {
-      return 0;
-      }
-    return 1;
-    }
 
 private:
   vtkXMLCompositeDataReader(const vtkXMLCompositeDataReader&);  // Not implemented.

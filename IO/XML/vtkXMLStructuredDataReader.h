@@ -21,8 +21,8 @@
 // vtkXMLImageDataReader vtkXMLStructuredGridReader
 // vtkXMLRectilinearGridReader
 
-#ifndef __vtkXMLStructuredDataReader_h
-#define __vtkXMLStructuredDataReader_h
+#ifndef vtkXMLStructuredDataReader_h
+#define vtkXMLStructuredDataReader_h
 
 #include "vtkIOXMLModule.h" // For export macro
 #include "vtkXMLDataReader.h"
@@ -104,10 +104,10 @@ protected:
   // Internal utility methods.
   int ReadPiece(vtkXMLDataElement* ePiece);
   virtual int ReadSubExtent(
-      int* inExtent, int* inDimensions, vtkIdType* inIncrements,
-      int* outExtent,int* outDimensions,vtkIdType* outIncrements,
-      int* subExtent, int* subDimensions, vtkXMLDataElement* da,
-      vtkAbstractArray* array);
+    int* inExtent, int* inDimensions, vtkIdType* inIncrements,
+    int* outExtent,int* outDimensions,vtkIdType* outIncrements,
+    int* subExtent, int* subDimensions, vtkXMLDataElement* da,
+    vtkAbstractArray* array, FieldType type);
 
 private:
   vtkXMLStructuredDataReader(const vtkXMLStructuredDataReader&);  // Not implemented.

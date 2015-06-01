@@ -12,9 +12,9 @@ Use "--help" to list the supported arguments.
 
 import sys, logging
 
-from . import testing
-from . import upload
-from . import wamp as vtk_wamp
+from vtk.web import testing
+from vtk.web import upload
+from vtk.web import wamp as vtk_wamp
 
 from autobahn.wamp              import types
 
@@ -22,6 +22,8 @@ from autobahn.twisted.resource  import WebSocketResource
 from autobahn.twisted.websocket import listenWS
 from autobahn.twisted.longpoll  import WampLongPollResource
 
+from twisted.web                import resource
+from twisted.web.resource       import Resource
 from twisted.internet           import reactor
 from twisted.internet.defer     import inlineCallbacks
 from twisted.internet.endpoints import serverFromString
@@ -68,6 +70,8 @@ def add_arguments(parser):
         help="Specify WebSocket endpoint. (e.g. foo/bar/ws, Default: ws)")
     parser.add_argument("-lp", "--lp-endpoint", type=str, default="lp", dest='lp',
         help="Specify LongPoll endpoint. (e.g. foo/bar/lp, Default: lp)")
+    parser.add_argument("-hp", "--http-endpoint", default='hp', dest='hp',
+        help="Specify an HTTP endpoint.  (e.g. foo/bar/hp, Default: hp)")
     parser.add_argument("--no-ws-endpoint", action="store_true", dest='nows',
         help="If provided, disables the websocket endpoint")
     parser.add_argument("--no-lp-endpoint", action="store_true", dest='nolp',
@@ -98,7 +102,7 @@ def start(argv=None,
     except ImportError:
         # since  Python 2.6 and earlier don't have argparse, we simply provide
         # the source for the same as _argparse and we use it instead.
-        import _argparse as argparse
+        from vtk.util import _argparse as argparse
 
     parser = argparse.ArgumentParser(description=description)
     add_arguments(parser)
@@ -144,7 +148,6 @@ def start_webserver(options, protocol=vtk_wamp.ServerProtocol, disableLogging=Fa
     from twisted.internet import reactor
     from twisted.web.server import Site
     from twisted.web.static import File
-    from twisted.web.resource import Resource
     import sys
 
     if not disableLogging:
@@ -200,7 +203,14 @@ def start_webserver(options, protocol=vtk_wamp.ServerProtocol, disableLogging=Fa
 
     # Handle possibly complex lp endpoint
     if not options.nolp:
-        lpResource = WampLongPollResource(session_factory)
+        lpResource = WampLongPollResource(session_factory,
+                                          timeout=options.timeout,
+                                          debug=options.debug)
+                                          #killAfter = 30000,
+                                          #queueLimitBytes = 1024 * 1024,
+                                          #queueLimitMessages = 1000,
+                                          #debug=True,
+                                          #reactor=reactor)
         handle_complex_resource_path(options.lp, root, lpResource)
 
     if options.uploadPath != None :
@@ -215,6 +225,9 @@ def start_webserver(options, protocol=vtk_wamp.ServerProtocol, disableLogging=Fa
     else:
       reactor.listenTCP(options.port, site)
 
+    # flush ready line
+    sys.stdout.flush()
+
     # Work around to force the output buffer to be flushed
     # This allow the process launcher to parse the output and
     # wait for "Start factory" to know that the WebServer
@@ -223,11 +236,8 @@ def start_webserver(options, protocol=vtk_wamp.ServerProtocol, disableLogging=Fa
         for i in range(200):
             log.msg("+"*80, logLevel=logging.CRITICAL)
 
-    # Give test client a chance to initialize a thread for itself
-    # testing.initialize(opts=options)
-
     # Initialize testing: checks if we're doing a test and sets it up
-    testing.initialize(options, reactor)
+    testing.initialize(options, reactor, stop_webserver)
 
     # Start the reactor
     if options.nosignalhandlers:
@@ -237,6 +247,36 @@ def start_webserver(options, protocol=vtk_wamp.ServerProtocol, disableLogging=Fa
 
     # Give the testing module a chance to finalize, if necessary
     testing.finalize()
+
+
+# =============================================================================
+# Start httpserver
+# =============================================================================
+
+def start_httpserver(options, protocol=vtk_wamp.ServerProtocol, disableLogging=False):
+    """
+    Starts an http-only server with the given protocol.  The options argument should
+    contain 'host', 'port', 'urlRegex', and optionally 'content'.
+    """
+    from twisted.web import server, http
+    from twisted.internet import reactor
+    from twisted.web.static import File
+
+    host = options.host
+    port = options.port
+    contentDir = options.content
+    rootPath = options.hp
+
+    # Initialize web resource
+    web_resource = File(contentDir) if contentDir else resource.Resource()
+
+    # Add the rpc method server
+    handle_complex_resource_path(rootPath, web_resource, vtk_wamp.HttpRpcResource(protocol(None), rootPath))
+
+    site = server.Site(web_resource)
+    reactor.listenTCP(port, site, interface=host)
+
+    reactor.run()
 
 if __name__ == "__main__":
     start()

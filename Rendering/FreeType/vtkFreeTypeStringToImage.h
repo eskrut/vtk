@@ -18,8 +18,8 @@
 // .SECTION Description
 //
 
-#ifndef __vtkFreeTypeStringToImage_h
-#define __vtkFreeTypeStringToImage_h
+#ifndef vtkFreeTypeStringToImage_h
+#define vtkFreeTypeStringToImage_h
 
 #include "vtkRenderingFreeTypeModule.h" // For export macro
 #include "vtkStringToImage.h"
@@ -46,9 +46,9 @@ public:
   // is valid (it may not if GetBoundingBox() failed or if the string
   // was empty).
   virtual vtkVector2i GetBounds(vtkTextProperty *property,
-                                const vtkUnicodeString& string);
+                                const vtkUnicodeString& string, int dpi);
   virtual vtkVector2i GetBounds(vtkTextProperty *property,
-                                const vtkStdString& string);
+                                const vtkStdString& string, int dpi);
 
   // Description:
   // Given a text property and a string, this function initializes the
@@ -57,11 +57,11 @@ public:
   // This is useful when ScaleToPowerOfTwo is true, and the image dimensions may
   // not match the dimensions of the rendered text.
   virtual int RenderString(vtkTextProperty *property,
-                           const vtkUnicodeString& string,
+                           const vtkUnicodeString& string, int dpi,
                            vtkImageData *data,
                            int textDims[2] = NULL);
   virtual int RenderString(vtkTextProperty *property,
-                           const vtkStdString& string,
+                           const vtkStdString& string, int dpi,
                            vtkImageData *data,
                            int textDims[2] = NULL);
 
@@ -86,4 +86,4 @@ private:
   void operator=(const vtkFreeTypeStringToImage &);   // Not implemented.
 };
 
-#endif //__vtkFreeTypeStringToImage_h
+#endif //vtkFreeTypeStringToImage_h

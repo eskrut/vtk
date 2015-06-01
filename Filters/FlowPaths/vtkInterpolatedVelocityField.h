@@ -48,8 +48,8 @@
 //  vtkGenericInterpolatedVelocityField vtkCachingInterpolatedVelocityField
 //  vtkTemporalInterpolatedVelocityField vtkFunctionSet vtkStreamer vtkStreamTracer
 
-#ifndef __vtkInterpolatedVelocityField_h
-#define __vtkInterpolatedVelocityField_h
+#ifndef vtkInterpolatedVelocityField_h
+#define vtkInterpolatedVelocityField_h
 
 #include "vtkFiltersFlowPathsModule.h" // For export macro
 #include "vtkCompositeInterpolatedVelocityField.h"
@@ -77,6 +77,10 @@ public:
   // Description:
   // Evaluate the velocity field f at point (x, y, z).
   virtual int FunctionValues( double * x, double * f );
+
+  // Description:
+  // Project the provided point on current cell, current dataset.
+  virtual int SnapPointOnCell(double* pOrigin, double* pProj);
 
   // Description:
   // Set the cell id cached by the last evaluation within a specified dataset.

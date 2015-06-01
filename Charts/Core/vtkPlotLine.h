@@ -19,8 +19,8 @@
 // .SECTION Description
 //
 
-#ifndef __vtkPlotLine_h
-#define __vtkPlotLine_h
+#ifndef vtkPlotLine_h
+#define vtkPlotLine_h
 
 #include "vtkChartsCoreModule.h" // For export macro
 #include "vtkPlotPoints.h"
@@ -47,10 +47,24 @@ public:
   virtual bool PaintLegend(vtkContext2D *painter, const vtkRectf& rect,
                            int legendIndex);
 
+  // Description:
+  // Turn on/off flag to control whether the points define a poly line
+  // (true) or multiple line segments (false).
+  // If true (default), a segment is drawn between each points
+  // (e.g. [P1P2, P2P3, P3P4...].) If false, a segment is drawn for each pair
+  // of points (e.g. [P1P2, P3P4,...].)
+  vtkSetMacro(PolyLine,bool);
+  vtkGetMacro(PolyLine,bool);
+  vtkBooleanMacro(PolyLine,bool);
+
 //BTX
 protected:
   vtkPlotLine();
   ~vtkPlotLine();
+
+  // Description:
+  // Poly line (true) or line segments(false).
+  bool PolyLine;
 
 private:
   vtkPlotLine(const vtkPlotLine &); // Not implemented.
@@ -59,4 +73,4 @@ private:
 //ETX
 };
 
-#endif //__vtkPlotLine_h
+#endif //vtkPlotLine_h

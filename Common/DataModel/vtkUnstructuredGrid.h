@@ -21,8 +21,8 @@
 // (e.g., triangles, polygons), and 3D (e.g., hexahedron, tetrahedron,
 // polyhedron, etc.).
 
-#ifndef __vtkUnstructuredGrid_h
-#define __vtkUnstructuredGrid_h
+#ifndef vtkUnstructuredGrid_h
+#define vtkUnstructuredGrid_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkUnstructuredGridBase.h"
@@ -97,6 +97,7 @@ public:
   // point Ids. For polyhedron cell, a special input format is required.
   // npts is the number of faces in the cell. ptIds is the list of face stream:
   // (numFace0Pts, id1, id2, id3, numFace1Pts,id1, id2, id3, ...)
+  // Make sure you have called Allocate() before calling this method
   vtkIdType InsertNextCell(int type, vtkIdType npts, vtkIdType *ptIds);
 
   // Description:
@@ -106,6 +107,7 @@ public:
   // is the list of global Ids of unique cell points. For polyhedron cell,
   // a special ptIds input format is required:
   // (numCellFaces, numFace0Pts, id1, id2, id3, numFace1Pts,id1, id2, id3, ...)
+  // Make sure you have called Allocate() before calling this method
   vtkIdType InsertNextCell(int type, vtkIdList *ptIds);
 
   // Desciption:
@@ -114,6 +116,7 @@ public:
   // number of faces in the cell. faces is the face-stream
   // [numFace0Pts, id1, id2, id3, numFace1Pts,id1, id2, id3, ...].
   // All point Ids are global.
+  // Make sure you have called Allocate() before calling this method
   vtkIdType InsertNextCell(int type, vtkIdType npts, vtkIdType *ptIds,
                            vtkIdType nfaces, vtkIdType *faces);
 
@@ -201,7 +204,7 @@ public:
   virtual int GetGhostLevel();
 
   // Description:
-  // Return the actual size of the data in kilobytes. This number
+  // Return the actual size of the data in kibibytes (1024 bytes). This number
   // is valid only after the pipeline has updated. The memory size
   // returned is guaranteed to be greater than or equal to the
   // memory required to represent the data (e.g., extra space in
@@ -225,9 +228,9 @@ public:
   int IsHomogeneous();
 
   // Description:
-  // This method will remove any cell that has a ghost level array value
-  // greater or equal to level.
-  void RemoveGhostCells(int level);
+  // This method will remove any cell that is marked as ghost
+  // (has the vtkDataSetAttributes::DUPLICATECELL bit set).
+  void RemoveGhostCells();
 
   //BTX
   // Description:

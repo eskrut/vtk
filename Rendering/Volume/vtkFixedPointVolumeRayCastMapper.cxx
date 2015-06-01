@@ -1493,13 +1493,13 @@ void vtkFixedPointVolumeRayCastMapper::CaptureZBuffer( vtkRenderer *ren )
 
 void vtkFixedPointVolumeRayCastMapper::Render( vtkRenderer *ren, vtkVolume *vol )
 {
-  if (this->Threader->GetNumberOfThreads() > 1 && this->ThreadWarning)
-    {
-    vtkWarningMacro("Number of threads "
-                    << this->Threader->GetNumberOfThreads()
-                    << " is  > 1. This class does not produce repeatable results when the number of threads exceeds 1.");
-    this->ThreadWarning = false;
-    }
+//  if (this->Threader->GetNumberOfThreads() > 1 && this->ThreadWarning)
+//    {
+//    vtkWarningMacro("Number of threads "
+//                    << this->Threader->GetNumberOfThreads()
+//                    << " is  > 1. This class does not produce repeatable results when the number of threads exceeds 1.");
+//    this->ThreadWarning = false;
+//    }
   this->Timer->StartTimer();
 
   // Since we are passing in a value of 0 for the multiRender flag
@@ -3457,4 +3457,13 @@ void vtkFixedPointVolumeRayCastMapper::PrintSelf(ostream& os, vtkIndent indent)
   //   << this->TableScale[3] << endl;
 
   // os << indent << "Flip Mip Comparison" << this->FlipMIPComparison << end;"
+}
+
+
+void vtkFixedPointVolumeRayCastMapper::ReleaseGraphicsResources(vtkWindow *win)
+{
+  if (win && this->ImageDisplayHelper)
+    {
+    this->ImageDisplayHelper->ReleaseGraphicsResources(win);
+    }
 }

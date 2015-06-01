@@ -29,21 +29,21 @@
 // Binary files written on one system may not be readable on other systems.
 // vtkSTLWriter uses VAX or PC byte ordering and swaps bytes on other systems.
 
-#ifndef __vtkSTLReader_h
-#define __vtkSTLReader_h
+#ifndef vtkSTLReader_h
+#define vtkSTLReader_h
 
 #include "vtkIOGeometryModule.h" // For export macro
-#include "vtkPolyDataAlgorithm.h"
+#include "vtkAbstractPolyDataReader.h"
 
 class vtkCellArray;
 class vtkFloatArray;
 class vtkIncrementalPointLocator;
 class vtkPoints;
 
-class VTKIOGEOMETRY_EXPORT vtkSTLReader : public vtkPolyDataAlgorithm
+class VTKIOGEOMETRY_EXPORT vtkSTLReader : public vtkAbstractPolyDataReader
 {
 public:
-  vtkTypeMacro(vtkSTLReader,vtkPolyDataAlgorithm);
+  vtkTypeMacro(vtkSTLReader,vtkAbstractPolyDataReader);
   void PrintSelf(ostream& os, vtkIndent indent);
 
   // Description:
@@ -54,11 +54,6 @@ public:
   // Overload standard modified time function. If locator is modified,
   // then this object is modified as well.
   unsigned long GetMTime();
-
-  // Description:
-  // Specify file name of stereo lithography file.
-  vtkSetStringMacro(FileName);
-  vtkGetStringMacro(FileName);
 
   // Description:
   // Turn on/off merging of points/triangles.
@@ -86,7 +81,6 @@ protected:
   // Create default locator. Used to create one when none is specified.
   vtkIncrementalPointLocator* NewDefaultLocator();
 
-  char *FileName;
   int Merging;
   int ScalarTags;
   vtkIncrementalPointLocator *Locator;

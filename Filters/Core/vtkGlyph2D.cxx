@@ -78,7 +78,7 @@ int vtkGlyph2D::RequestData(
   vtkDataArray* temp = 0;
   if (pd)
     {
-    temp = pd->GetArray("vtkGhostLevels");
+    temp = pd->GetArray(vtkDataSetAttributes::GhostArrayName());
     }
   if ( (!temp) || (temp->GetDataType() != VTK_UNSIGNED_CHAR)
     || (temp->GetNumberOfComponents() != 1))
@@ -114,6 +114,37 @@ int vtkGlyph2D::RequestData(
   else
     {
     haveVectors = 0;
+    }
+
+
+  if (inNormals && numPts != inNormals->GetNumberOfTuples())
+    {
+    vtkErrorMacro(<< "Number of points (" << numPts << ") does not match "
+                  << "number of normals (" << inNormals->GetNumberOfTuples()
+                  << ").");
+    pts->Delete();
+    trans->Delete();
+    return 1;
+    }
+
+  if (inVectors && numPts != inVectors->GetNumberOfTuples())
+    {
+    vtkErrorMacro(<< "Number of points (" << numPts << ") does not match "
+                  << "number of vectors (" << inVectors->GetNumberOfTuples()
+                  << ").");
+    pts->Delete();
+    trans->Delete();
+    return 1;
+    }
+
+  if (inScalars && numPts != inScalars->GetNumberOfTuples())
+    {
+    vtkErrorMacro(<< "Number of points (" << numPts << ") does not match "
+                  << "number of scalars (" << inScalars->GetNumberOfTuples()
+                  << ").");
+    pts->Delete();
+    trans->Delete();
+    return 1;
     }
 
   if ( (this->IndexMode == VTK_INDEXING_BY_SCALAR && !inScalars) ||
@@ -323,8 +354,10 @@ int vtkGlyph2D::RequestData(
       continue;
       }
 
-    // Check ghost points.
-    if (inGhostLevels && inGhostLevels[inPtId] > 0)
+    // Check ghost/blanked points.
+    if (inGhostLevels &&
+        inGhostLevels[inPtId] & (vtkDataSetAttributes::DUPLICATEPOINT |
+                                 vtkDataSetAttributes::HIDDENPOINT))
       {
       continue;
       }

@@ -36,7 +36,7 @@
 # undef VTK_USE_UINT64
 # define VTK_USE_UINT64 0
 
-#include <limits.h>
+#include <climits>
 #include <float.h>
 #include <math.h>
 
@@ -584,6 +584,7 @@ int vtkImageReslice::RequestUpdateExtent(
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
 
   outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), outExt);
+  this->HitInputExtent = 1;
 
   if (this->ResliceTransform)
     {
@@ -705,7 +706,6 @@ int vtkImageReslice::RequestUpdateExtent(
   // Clip to whole extent, make sure we hit the extent
   int wholeExtent[6];
   inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), wholeExtent);
-  this->HitInputExtent = 1;
 
   for (int k = 0; k < 3; k++)
     {
@@ -1774,6 +1774,7 @@ void vtkGetSetPixelsFunc(
         default:
           *setpixels = 0;
         }
+      break;
     case 2:
       switch (dataType)
         {
@@ -1783,6 +1784,7 @@ void vtkGetSetPixelsFunc(
         default:
           *setpixels = 0;
         }
+      break;
     case 3:
       switch (dataType)
         {
@@ -1792,6 +1794,7 @@ void vtkGetSetPixelsFunc(
         default:
           *setpixels = 0;
         }
+      break;
     case 4:
       switch (dataType)
         {
@@ -1801,6 +1804,7 @@ void vtkGetSetPixelsFunc(
         default:
           *setpixels = 0;
         }
+      break;
     default:
       switch (dataType)
         {
@@ -2755,6 +2759,7 @@ void vtkGetRowCompositeFunc(
       else { *composite = &(vtkImageResliceRowComp<F>::SumRow); }
       break;
     default:
+      vtkGenericWarningMacro("Illegal slab mode!");
       *composite = 0;
     }
 }
@@ -2854,7 +2859,7 @@ void vtkReslicePermuteExecute(vtkImageReslice *self,
     scalarType, scalarSize, outComponents, outPtr);
 
   // get the slab compositing function
-  void (*composite)(F *op, const F *ip, int nc, int count, int i, int n);
+  void (*composite)(F *op, const F *ip, int nc, int count, int i, int n) = 0;
   vtkGetRowCompositeFunc(&composite,
     self->GetSlabMode(), self->GetSlabTrapezoidIntegration());
 
@@ -2931,7 +2936,7 @@ void vtkReslicePermuteExecute(vtkImageReslice *self,
               interpolator->InterpolateRow(
                 weights, idX, idY, idZ1, tmpPtr, idXmax - idXmin + 1);
 
-              if (nsamples1 > 1)
+              if (composite && (nsamples1 > 1))
                 {
                 composite(floatPtr, floatSumPtr, inComponents,
                           idXmax - idXmin + 1, isample, nsamples1);

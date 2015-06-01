@@ -36,7 +36,7 @@ IF(APPLE)
   SET(VTK_OBJCXX_FLAGS_DEFAULT "")
   SET(VTK_REQUIRED_OBJCXX_FLAGS ${VTK_OBJCXX_FLAGS_DEFAULT} CACHE STRING "Extra flags for Objective-C++ compilation")
   MARK_AS_ADVANCED(VTK_REQUIRED_OBJCXX_FLAGS)
-ENDIF(APPLE)
+ENDIF()
 
 set(VTK_CMAKE_DIR "${VTK_SOURCE_DIR}/CMake")
 set(CMAKE_MODULE_PATH ${VTK_CMAKE_DIR} ${CMAKE_MODULE_PATH})
@@ -82,9 +82,25 @@ mark_as_advanced(CMAKE_RUNTIME_OUTPUT_DIRECTORY
   CMAKE_ARCHIVE_OUTPUT_DIRECTORY
   )
 
+include(vtkVersion)
+set(VTK_VERSION
+    "${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}.${VTK_BUILD_VERSION}")
+
+option(VTK_IOS_BUILD "Build vtk.framework for iOS" OFF)
+if (VTK_IOS_BUILD)
+  include(vtkiOS)
+  return()
+endif()
+
+option(VTK_ANDROID_BUILD "Build VTK for Android" OFF)
+if (VTK_ANDROID_BUILD)
+  include(vtkAndroid)
+  return()
+endif()
+
 # some specific defaults for Andriod to give folks
 # a reasonable starting point
-if (ANDROID)
+if (ANDROID OR APPLE_IOS)
   SET( CMAKE_REQUIRE_LARGE_FILE_SUPPORT 2
        CACHE STRING "Result from TRY_RUN" FORCE)
   SET( CMAKE_REQUIRE_LARGE_FILE_SUPPORT__TRYRUN_OUTPUT ""
@@ -100,44 +116,90 @@ if (ANDROID)
   SET( KWSYS_LFS_WORKS__TRYRUN_OUTPUT ""
      CACHE STRING "Output from TRY_RUN" FORCE)
 
-  set(BUILD_SHARED_LIBS OFF)
+  option(BUILD_SHARED_LIBS "should be off for embedded" OFF)
   set(VTK_RENDERING_BACKEND OpenGL2)
-  set(VTK_Group_StandAlone OFF)
-  set(VTK_Group_Rendering OFF)
-  # set(Module_vtkFiltersCore ON)
-  # set(Module_vtkFiltersModeling ON)
-  # set(Module_vtkFiltersSources ON)
-  # set(Module_vtkFiltersGeometry ON)
   set(Module_vtkRenderingCore ON)
+  option(VTK_Group_Rendering "off for embedded" OFF)
+  option(VTK_Group_StandAlone "off for embedded" OFF)
+  option(VTK_Group_Imaging "off for embedded" OFF)
+  option(VTK_Group_MPI "off for embedded" OFF)
+  option(VTK_Group_Views "off for embedded" OFF)
+  option(VTK_Group_Qt "off for embedded" OFF)
+  option(VTK_Group_Tk "off for embedded" OFF)
+  option(VTK_Group_Web "off for embedded" OFF)
 
-  # find opengl es2 (maybe someday add an option for ES3)
-  find_path(OPENGL_INCLUDE_DIR GLES2/gl2.h
-     ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/include
-     ${_OPENGL_INCLUDE_PATH}
-     )
-  find_library(OPENGL_gl_LIBRARY
-     NAMES GLESv2
-     PATHS
-       ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/lib
-       ${_OPENGL_LIB_PATH}
-     )
-  find_library(OPENGL_egl_LIBRARY
-     NAMES EGL
-     PATHS
-       ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/lib
-       ${_OPENGL_LIB_PATH}
-     )
+  # need int version for CPP
+  if (${OPENGL_ES_VERSION} MATCHES 2.0)
+    set(OPENGL_ES_VERSION_INT 20)
+  endif()
+  if (${OPENGL_ES_VERSION} MATCHES 3.0)
+    set(OPENGL_ES_VERSION_INT 30)
+  endif()
+
+  if (APPLE_IOS)
+    unset(OPENGL_INCLUDE_DIR CACHE)
+    if (${OPENGL_ES_VERSION} MATCHES 2.0)
+      find_path(OPENGL_INCLUDE_DIR ES2/gl.h
+                ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks/OpenGLES.framework/Headers
+                ${_OPENGL_INCLUDE_DIR})
+    elseif (${OPENGL_ES_VERSION} MATCHES 3.0)
+      find_path(OPENGL_INCLUDE_DIR ES3/gl.h
+                ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks/OpenGLES.framework/Headers
+                ${_OPENGL_INCLUDE_DIR})
+    endif()
+    find_library(OPENGL_gl_LIBRARY
+       NAMES OpenGLES
+       PATHS
+         ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks
+         ${_OPENGL_LIB_PATH}
+       )
+  elseif (ANDROID)
+    unset(OPENGL_INCLUDE_DIR CACHE)
+    unset(OPENGL_gl_LIBRARY CACHE)
+    unset(OPENGL_egl_LIBRARY CACHE)
+
+    if (${OPENGL_ES_VERSION} MATCHES 2.0)
+      find_path(OPENGL_INCLUDE_DIR GLES2/gl2.h
+         ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/include
+         ${_OPENGL_INCLUDE_PATH}
+         NO_DEFAULT_PATH
+         )
+      find_library(OPENGL_gl_LIBRARY
+         NAMES GLESv2
+         PATHS
+           ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/lib
+           ${_OPENGL_LIB_PATH}
+         )
+    elseif (${OPENGL_ES_VERSION} MATCHES 3.0)
+      find_path(OPENGL_INCLUDE_DIR GLES3/gl3.h
+         ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/include
+         ${_OPENGL_INCLUDE_PATH}
+         )
+      find_library(OPENGL_gl_LIBRARY
+         NAMES GLESv3
+         PATHS
+           ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/lib
+           ${_OPENGL_LIB_PATH}
+         )
+    endif()
+    find_library(OPENGL_egl_LIBRARY
+       NAMES EGL
+       PATHS
+         ${ANDROID_NDK}/platforms/android-${ANDROID_NATIVE_API_LEVEL}/arch-${ANDROID_ARCH_NAME}/usr/lib
+         ${_OPENGL_LIB_PATH}
+       )
+  endif()
+else()
+  # Choose static or shared libraries.
+  option(BUILD_SHARED_LIBS "Build VTK with shared libraries." ON)
 endif()
 
-# Choose static or shared libraries.
-option(BUILD_SHARED_LIBS "Build VTK with shared libraries." ON)
+# default to not using the system GLEW as ours has fixes in it right now
+set(VTK_USE_SYSTEM_GLEW OFF CACHE BOOL "do not use a system glew" FORCE)
+
 set(VTK_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
 
 #-----------------------------------------------------------------------------
-include(vtkVersion)
-set(VTK_VERSION
-    "${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}.${VTK_BUILD_VERSION}")
-
 # VTK installation structure
 if(NOT VTK_INSTALL_RUNTIME_DIR)
   set(VTK_INSTALL_RUNTIME_DIR bin)
@@ -191,6 +253,11 @@ if (CMAKE_CROSSCOMPILING AND NOT COMPILE_TOOLS_IMPORTED)
   find_package(VTKCompileTools REQUIRED)
   set (COMPILE_TOOLS_IMPORTED TRUE)
 endif()
+
+#-----------------------------------------------------------------------------
+# Do we try to use system libraries by default?
+option(VTK_USE_SYSTEM_LIBRARIES "Use the system's libraries by default." OFF)
+mark_as_advanced(VTK_USE_SYSTEM_LIBRARIES)
 
 #-----------------------------------------------------------------------------
 # The third party macros are still used in one or two third party builds.
@@ -276,20 +343,42 @@ set(VTK_USE_WIN32_THREADS 0)
 set(VTK_USE_PTHREADS 1)
 set(VTK_HP_PTHREADS 0)
 set(VTK_USE_SPROC 0)
-set(CMAKE_THREAD_LIBS_INIT "-pthread")
-set(CMAKE_HAVE_PTHREAD_H 1)
-set(Threads_FOUND TRUE)
-#if(CMAKE_USE_WIN32_THREADS_INIT)
-#  set(VTK_USE_WIN32_THREADS 1)
-#  set(CMAKE_THREAD_LIBS_INIT "")
-#elseif(CMAKE_USE_PTHREADS_INIT)
-#  set(VTK_USE_PTHREADS 1)
-#  if(CMAKE_HP_PTHREADS_INIT)
-#    set(VTK_HP_PTHREADS 1)
-#  endif()
-#elseif(CMAKE_USE_SPROC_INIT)
-#  set(VTK_USE_SPROC 1)
-#endif()
+# if win32 threads and pthreads are available figure out which
+# one the compiler is setup to use.  If you can not figure it
+# out default to pthreads.
+if(CMAKE_USE_PTHREADS_INIT AND CMAKE_USE_WIN32_THREADS_INIT)
+  if(DEFINED VTK_THREAD_MODEL)
+    set(output "${VTK_THREAD_MODEL}")
+  else()
+    execute_process(COMMAND "${CMAKE_C_COMPILER}" -v OUTPUT_VARIABLE output
+      ERROR_VARIABLE output RESULT_VARIABLE result TIMEOUT 10)
+  endif()
+  if(output MATCHES "Thread model: posix")
+    set(VTK_THREAD_MODEL "Thread model: posix" CACHE STRING
+      "Thread model used by gcc.")
+    set(CMAKE_USE_WIN32_THREADS_INIT 0)
+  elseif(output MATCHES "Thread model: win32")
+    set(VTK_THREAD_MODEL "Thread model: win32" CACHE STRING
+      "Thread model used by gcc.")
+    set(CMAKE_USE_PTHREADS_INIT 0)
+  else()
+    set(VTK_THREAD_MODEL "Thread model: posix" CACHE STRING
+      "Thread model used by gcc.")
+    set(CMAKE_USE_WIN32_THREADS_INIT 0)
+  endif()
+endif()
+mark_as_advanced(VTK_THREAD_MODEL)
+if(CMAKE_USE_WIN32_THREADS_INIT)
+  set(VTK_USE_WIN32_THREADS 1)
+  set(CMAKE_THREAD_LIBS_INIT "")
+elseif(CMAKE_USE_PTHREADS_INIT)
+  set(VTK_USE_PTHREADS 1)
+  if(CMAKE_HP_PTHREADS_INIT)
+    set(VTK_HP_PTHREADS 1)
+  endif()
+elseif(CMAKE_USE_SPROC_INIT)
+  set(VTK_USE_SPROC 1)
+endif()
 set(CMAKE_THREAD_LIBS "${CMAKE_THREAD_LIBS_INIT}" CACHE STRING "Thread library used.")
 mark_as_advanced(CMAKE_THREAD_LIBS)
 set(VTK_MAX_THREADS "64" CACHE STRING
@@ -342,6 +431,8 @@ include(VTKParallelCMakeTests)
 
 # Add the option for build the Python wrapping to VTK.
 option(VTK_WRAP_PYTHON "Should VTK Python wrapping be built?" OFF)
+set(VTK_PYTHON_VERSION 2 CACHE STRING
+    "Python version to use: 2, 2.x, or empty")
 
 # Add the option for build the Python wrapping to VTK.
 option(VTK_WRAP_JAVA "Should VTK Java wrapping be built?" OFF)
@@ -362,7 +453,7 @@ mark_as_advanced(VTK_WRAP_HINTS)
 
 if(BUILD_TESTING OR VTK_WRAP_PYTHON)
   # Need PYTHON_EXECUTABLE for HeaderTesting or python wrapping
-  find_package(PythonInterp QUIET)
+  find_package(PythonInterp ${VTK_PYTHON_VERSION} QUIET)
   mark_as_advanced(PYTHON_EXECUTABLE)
 endif()
 
@@ -477,6 +568,7 @@ if (_vtk_compiletools_targets)
          FILE ${VTK_BINARY_DIR}/VTKCompileToolsConfig.cmake)
   add_dependencies(vtkCompileTools ${_vtk_compiletools_targets})
 endif()
+
 unset(_vtk_targets)
 unset(_vtk_compiletools_targets)
 unset(_vtk_all_targets)

@@ -12,8 +12,8 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkConfigure_h
-#define __vtkConfigure_h
+#ifndef vtkConfigure_h
+#define vtkConfigure_h
 
 /* This header is configured by VTK's build process.  */
 
@@ -192,6 +192,17 @@
    typedef __int64 vtkIOStreamSLL;
    typedef unsigned __int64 vtkIOStreamULL;
 # endif
+#endif
+
+/* The maximum length of a file name in bytes including the
+ * terminating null.
+ */
+#if defined(PATH_MAX) // Usually defined on Windows
+# define VTK_MAXPATH PATH_MAX
+#elif defined(MAXPATHLEN)  // Usually defined on linux
+# define VTK_MAXPATH MAXPATHLEN
+#else
+# define VTK_MAXPATH 32767 // Possible with Windows "extended paths"
 #endif
 
 #endif

@@ -16,8 +16,8 @@
 // .SECTION Description
 // vtkOpenGLShaderCache manages shader program compilation and binding
 
-#ifndef __vtkOpenGLShaderCache_h
-#define __vtkOpenGLShaderCache_h
+#ifndef vtkOpenGLShaderCache_h
+#define vtkOpenGLShaderCache_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkObject.h"
@@ -38,6 +38,12 @@ public:
                                            const char *fragmentCode,
                                            const char *geometryCode);
   virtual vtkShaderProgram *ReadyShader(vtkShaderProgram *shader);
+
+  // Description:
+  // Release the current shader.  Basically go back to
+  // having no shaders loaded.  This is useful for old
+  // legacy code that relies on no shaders being loaded.
+  void ReleaseCurrentShader();
 
   // Description:
   // Free up any resources being used by the provided shader

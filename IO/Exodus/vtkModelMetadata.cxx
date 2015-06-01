@@ -30,7 +30,7 @@
 #include "vtkIdList.h"
 #include "vtkCellData.h"
 #include "vtkPointData.h"
-#include <time.h>
+#include <ctime>
 
 vtkStandardNewMacro(vtkModelMetadata);
 
@@ -50,7 +50,6 @@ public:
 #undef FREELIST
 
 #define FREE(x) \
-  if (x)        \
     {           \
     delete [] x;\
     x = NULL;   \
@@ -61,7 +60,7 @@ public:
     {                          \
     for (i=0; i<len; i++)      \
       {                        \
-      if (x[i]) delete [] x[i];\
+      delete [] x[i];          \
       }                        \
     delete [] x;               \
     x = NULL;                  \
@@ -192,11 +191,8 @@ void vtkModelMetadata::FreeAllGlobalData()
   this->SetBlockNodesPerElement(NULL);
   this->SetBlockNumberOfAttributesPerElement(NULL);
 
-  if (this->BlockIdIndex)
-    {
-    delete this->BlockIdIndex;
-    this->BlockIdIndex = NULL;
-    }
+  delete this->BlockIdIndex;
+  this->BlockIdIndex = NULL;
 
   this->SetNodeSetIds(NULL);
   this->SetSideSetIds(NULL);
@@ -401,11 +397,7 @@ int vtkModelMetadata::BuildBlockAttributesIndex()
     return 1;
     }
 
-  if (this->BlockAttributesIndex)
-    {
-    delete [] this->BlockAttributesIndex;
-    }
-
+  delete [] this->BlockAttributesIndex;
   this->BlockAttributesIndex = new int [nblocks];
 
   int idx = 0;
@@ -430,10 +422,7 @@ int vtkModelMetadata::BuildBlockElementIdListIndex()
     return 1;
     }
 
-  if (this->BlockElementIdListIndex)
-    {
-    delete [] this->BlockElementIdListIndex;
-    }
+  delete [] this->BlockElementIdListIndex;
   this->BlockElementIdListIndex = new int [ nblocks ];
 
   int idx = 0;
@@ -484,11 +473,23 @@ void vtkModelMetadata::SetNodeSetIds(int *n)
 
   this->NodeSetIds = n;
 }
+void vtkModelMetadata::SetNodeSetSize(int *n)
+{
+  FREE(this->NodeSetSize);
+
+  this->NodeSetSize = n;
+}
 void vtkModelMetadata::SetNodeSetNodeIdList(int *n)
 {
   FREE(this->NodeSetNodeIdList);
 
   this->NodeSetNodeIdList = n;
+}
+void vtkModelMetadata::SetNodeSetNumberOfDistributionFactors(int *n)
+{
+  FREE(this->NodeSetNumberOfDistributionFactors);
+
+  this->NodeSetNumberOfDistributionFactors = n;
 }
 void vtkModelMetadata::SetNodeSetDistributionFactors(float *d)
 {
@@ -567,10 +568,7 @@ int vtkModelMetadata::BuildSideSetDistributionFactorIndex()
     return 1;
     }
 
-  if (this->SideSetDistributionFactorIndex)
-    {
-    delete [] this->SideSetDistributionFactorIndex;
-    }
+  delete [] this->SideSetDistributionFactorIndex;
   this->SideSetDistributionFactorIndex = new int [ nsets ];
 
   int idx = 0;

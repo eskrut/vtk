@@ -24,8 +24,8 @@
 #include <algorithm>
 #include <functional>
 
-#include <vtkAppendPolyData.h>
-#include <vtkCubeSource.h>
+#include "vtkAppendPolyData.h"
+#include "vtkCubeSource.h"
 //
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkModifiedBSPTree);
@@ -57,12 +57,9 @@ vtkModifiedBSPTree::~vtkModifiedBSPTree(void)
 //---------------------------------------------------------------------------
 void vtkModifiedBSPTree::FreeSearchStructure(void)
 {
-  if (this->mRoot)
-    {
-    delete this->mRoot;
-    }
-  this->mRoot                     = NULL;
-  this->Level        = 0;
+  delete this->mRoot;
+  this->mRoot = NULL;
+  this->Level = 0;
   this->npn = this->nln = this->tot_depth = 0;
 }
 //---------------------------------------------------------------------------
@@ -565,7 +562,7 @@ void vtkModifiedBSPTree::GenerateRepresentation(int level, vtkPolyData *pd)
     ns.pop();
     if (node->depth==level)
       {
-      bl.push_back(_box(node->bounds));
+      bl.push_back(_box(node->Bounds));
       }
     else
       {
@@ -580,7 +577,7 @@ void vtkModifiedBSPTree::GenerateRepresentation(int level, vtkPolyData *pd)
         }
       else if (level==-1)
         {
-        bl.push_back(_box(node->bounds));
+        bl.push_back(_box(node->Bounds));
         }
       }
     }
@@ -1111,7 +1108,7 @@ void BSPNode::Classify(const double origin[3],
                        BSPNode *&Mid,
                        BSPNode *&Far) const
 {
-  double tOriginToDivPlane = mChild[0]->bounds[mAxis*2+1] - origin[mAxis];
+  double tOriginToDivPlane = mChild[0]->Bounds[mAxis*2+1] - origin[mAxis];
   double tDivDirection   = dir[mAxis];
   if ( tOriginToDivPlane > 0 )
     {
@@ -1154,7 +1151,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
   // X-Axis
   if (dir[0] < -Epsilon_)
     {                // ray travelling in -x direction
-    tT = (bounds[0] - origin[0]) / dir[0];
+    tT = (this->Bounds[0] - origin[0]) / dir[0];
     if (tT < rTmin)
       {
       return (false);        // ray already left of box. Can't hit
@@ -1163,7 +1160,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       {
       rTmax = tT;           // update new tmax
       }
-    tT = (bounds[1] - origin[0]) / dir[0]; // distance to right edge
+    tT = (this->Bounds[1] - origin[0]) / dir[0]; // distance to right edge
     if (tT >= rTmin)
       {                     // can't see this ever happening
       if (tT > rTmax)
@@ -1175,7 +1172,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
     }
   else if (dir[0] > Epsilon_)
     {
-    tT = (bounds[1] - origin[0]) / dir[0];
+    tT = (this->Bounds[1] - origin[0]) / dir[0];
     if (tT < rTmin)
       {
       return (false);
@@ -1184,7 +1181,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       {
       rTmax = tT;
       }
-    tT = (bounds[0] - origin[0]) / dir[0];
+    tT = (this->Bounds[0] - origin[0]) / dir[0];
     if (tT >= rTmin)
       {
       if (tT > rTmax)
@@ -1194,14 +1191,14 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       rTmin = tT;
       }
     }
-  else if (origin[0] < bounds[0] || origin[0] > bounds[1])
+  else if (origin[0] < this->Bounds[0] || origin[0] > this->Bounds[1])
     {
     return (false);
     }
   // Y-Axis
   if (dir[1] < -Epsilon_)
     {
-    tT = (bounds[2] - origin[1]) / dir[1];
+    tT = (this->Bounds[2] - origin[1]) / dir[1];
     if (tT < rTmin)
       {
       return (false);
@@ -1210,7 +1207,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       {
       rTmax = tT;
       }
-    tT = (bounds[3] - origin[1]) / dir[1];
+    tT = (this->Bounds[3] - origin[1]) / dir[1];
     if (tT >= rTmin)
       {
       if (tT > rTmax)
@@ -1222,7 +1219,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
     }
   else if (dir[1] > Epsilon_)
     {
-    tT = (bounds[3] - origin[1]) / dir[1];
+    tT = (this->Bounds[3] - origin[1]) / dir[1];
     if (tT < rTmin)
       {
       return (false);
@@ -1231,7 +1228,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       {
       rTmax = tT;
       }
-    tT = (bounds[2] - origin[1]) / dir[1];
+    tT = (this->Bounds[2] - origin[1]) / dir[1];
     if (tT >= rTmin)
       {
       if (tT > rTmax)
@@ -1241,14 +1238,14 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       rTmin = tT;
       }
     }
-  else if (origin[1] < bounds[2] || origin[1] > bounds[3])
+  else if (origin[1] < this->Bounds[2] || origin[1] > this->Bounds[3])
     {
     return (false);
     }
   // Z-Axis
   if (dir[2] < -Epsilon_)
     {
-    tT = (bounds[4] - origin[2]) / dir[2];
+    tT = (this->Bounds[4] - origin[2]) / dir[2];
     if (tT < rTmin)
       {
       return (false);
@@ -1257,7 +1254,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       {
       rTmax = tT;
       }
-    tT = (bounds[5] - origin[2]) / dir[2];
+    tT = (this->Bounds[5] - origin[2]) / dir[2];
     if (tT >= rTmin)
       {
       if (tT > rTmax)
@@ -1269,7 +1266,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
     }
   else if (dir[2] > Epsilon_)
     {
-    tT = (bounds[5] - origin[2]) / dir[2];
+    tT = (this->Bounds[5] - origin[2]) / dir[2];
     if (tT < rTmin)
       {
       return (false);
@@ -1278,7 +1275,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       {
       rTmax = tT;
       }
-    tT = (bounds[4] - origin[2]) / dir[2];
+    tT = (this->Bounds[4] - origin[2]) / dir[2];
     if (tT >= rTmin)
       {
       if (tT > rTmax)
@@ -1288,7 +1285,7 @@ bool BSPNode::RayMinMaxT(const double origin[3],
       rTmin = tT;
       }
     }
-  else if (origin[2] < bounds[4] || origin[2] > bounds[5])
+  else if (origin[2] < this->Bounds[4] || origin[2] > this->Bounds[5])
     {
     return (false);
     }
@@ -1446,9 +1443,9 @@ bool BSPNode::RayMinMaxT(const double bounds[6],
 //---------------------------------------------------------------------------
 bool BSPNode::Inside(double point[3]) const
 {
-  if (point[0]<this->bounds[0] || point[0]>this->bounds[1] ||
-      point[1]<this->bounds[2] || point[1]>this->bounds[3] ||
-      point[2]<this->bounds[4] || point[2]>this->bounds[5])
+  if (point[0]<this->Bounds[0] || point[0]>this->Bounds[1] ||
+      point[1]<this->Bounds[2] || point[1]>this->Bounds[3] ||
+      point[2]<this->Bounds[4] || point[2]>this->Bounds[5])
     {
     return 0;
     }

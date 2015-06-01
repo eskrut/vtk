@@ -16,6 +16,7 @@
 #include "vtkWrap.h"
 #include "vtkParseData.h"
 #include "vtkParseExtras.h"
+#include "vtkParseMerge.h"
 #include "vtkParseString.h"
 #include <stdlib.h>
 #include <string.h>
@@ -286,6 +287,28 @@ int vtkWrap_IsConst(ValueInfo *val)
 }
 
 /* -------------------------------------------------------------------- */
+/* Check if the arg type is an enum that is a member of the class */
+int vtkWrap_IsEnumMember(ClassInfo *data, ValueInfo *arg)
+{
+  int i;
+
+  if (arg->Class)
+    {
+    /* check if the enum is a member of the class */
+    for (i = 0; i < data->NumberOfEnums; i++)
+      {
+      EnumInfo *info = data->Enums[i];
+      if (info->Name && strcmp(arg->Class, info->Name) == 0)
+        {
+        return 1;
+        }
+      }
+    }
+
+  return 0;
+}
+
+/* -------------------------------------------------------------------- */
 /* Hints */
 
 int vtkWrap_IsNewInstance(ValueInfo *val)
@@ -430,8 +453,9 @@ int vtkWrap_IsVTKObjectBaseType(
       }
     }
 
-  /* fallback if no HierarchyInfo */
-  if (strncmp("vtk", classname, 3) == 0)
+  /* fallback if no HierarchyInfo, but skip smart pointers */
+  if (strncmp("vtk", classname, 3) == 0 &&
+      strncmp("vtkSmartPointer", classname, 15) != 0)
     {
     return 1;
     }
@@ -822,6 +846,34 @@ void vtkWrap_ExpandTypedefs(
     }
 }
 
+/* -------------------------------------------------------------------- */
+/* Merge superclass methods according to using declarations */
+void vtkWrap_ApplyUsingDeclarations(
+  ClassInfo *data, FileInfo *finfo, HierarchyInfo *hinfo)
+{
+  int i, n;
+
+  /* first, check if there are any declarations to apply */
+  n = data->NumberOfUsings;
+  for (i = 0; i < n; i++)
+    {
+    if (data->Usings[i]->Name)
+      {
+      break;
+      }
+    }
+  /* if using declarations found, read superclass headers */
+  if (i < n)
+    {
+    n = data->NumberOfSuperClasses;
+    for (i = 0; i < n; i++)
+      {
+      vtkParseMerge_MergeHelper(
+        finfo, finfo->Contents, hinfo, data->SuperClasses[i],
+        NULL, NULL, data);
+      }
+    }
+}
 
 /* -------------------------------------------------------------------- */
 /* get the type name */
@@ -864,10 +916,13 @@ const char *vtkWrap_GetTypeName(ValueInfo *val)
 /* variable declarations */
 
 void vtkWrap_DeclareVariable(
-  FILE *fp, ValueInfo *val, const char *name, int i, int flags)
+  FILE *fp, ClassInfo *data, ValueInfo *val, const char *name,
+  int i, int flags)
 {
   unsigned int aType;
   int j;
+  const char *typeName;
+  char *newTypeName = NULL;
 
   if (val == NULL)
     {
@@ -883,7 +938,27 @@ void vtkWrap_DeclareVariable(
     return;
     }
 
-  /* add a couple spaces */
+  typeName = vtkWrap_GetTypeName(val);
+
+  if (vtkWrap_IsEnumMember(data, val))
+    {
+    /* use a typedef to work around compiler issues when someone used
+       the same name for the enum type as for a variable or method */
+    newTypeName = (char *)malloc(strlen(name) + 16);
+    if (i >= 0)
+      {
+      sprintf(newTypeName, "%s%i_type", name, i);
+      }
+    else
+      {
+      sprintf(newTypeName, "%s_type", name);
+      }
+    fprintf(fp, "  typedef %s::%s %s;\n",
+            data->Name, typeName, newTypeName);
+    typeName = newTypeName;
+    }
+
+  /* add a couple spaces for indentation*/
   fprintf(fp,"  ");
 
   /* for const * return types, prepend with const */
@@ -909,7 +984,7 @@ void vtkWrap_DeclareVariable(
     }
 
   /* print the type name */
-  fprintf(fp, "%s ", vtkWrap_GetTypeName(val));
+  fprintf(fp, "%s ", typeName);
 
   /* indirection */
   if ((flags & VTK_WRAP_RETURN) != 0)
@@ -1004,6 +1079,8 @@ void vtkWrap_DeclareVariable(
     {
     fprintf(fp, ";\n");
     }
+
+  free(newTypeName);
 }
 
 void vtkWrap_DeclareVariableSize(
@@ -1044,4 +1121,35 @@ void vtkWrap_DeclareVariableSize(
             "  const int %s%s = %s;\n",
             name, idx, val->Dimensions[0]);
     }
+}
+
+char *vtkWrap_SafeSuperclassName(const char *name)
+{
+  int template_class = 0;
+  size_t size = strlen(name);
+  char *safe_name = malloc(size + 1);
+  size_t i;
+
+  memcpy(safe_name, name, size + 1);
+
+  for (i = 0; i < size; ++i)
+  {
+    char c = name[i];
+    if (c == '<' || c == '>')
+      {
+      safe_name[i] = '_';
+      template_class = 1;
+      }
+    if  (c == ',' || c == ' ')
+      {
+      safe_name[i] = '_';
+      }
+  }
+
+  if (!template_class)
+    {
+    free(safe_name);
+    return NULL;
+    }
+  return safe_name;
 }

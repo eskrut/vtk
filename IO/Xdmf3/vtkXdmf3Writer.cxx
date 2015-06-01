@@ -31,6 +31,7 @@
 #include "XdmfDomain.hpp"
 #include "XdmfGridCollection.hpp"
 #include "XdmfGridCollectionType.hpp"
+#include "XdmfHeavyDataWriter.hpp"
 #include "XdmfWriter.hpp"
 #include <stack>
 
@@ -46,6 +47,7 @@ public:
     this->Domain = XdmfDomain::New();
     this->Writer = XdmfWriter::New(filename);
     this->Writer->setLightDataLimit(0);
+    this->Writer->getHeavyDataWriter()->setReleaseData(true);
     this->NumberOfTimeSteps = 1;
     this->CurrentTimeIndex = 0;
     this->DestinationGroups.push(this->Domain);
@@ -60,7 +62,8 @@ public:
     this->Destination = this->DestinationGroups.top();
     this->Domain->insert(dest);
   }
-  void WriteDataObject(vtkDataObject *dataSet, bool hasTime, double time)
+  void WriteDataObject(vtkDataObject *dataSet, bool hasTime, double time,
+    const char* name = 0)
   {
     if (!dataSet)
       {
@@ -78,7 +81,8 @@ public:
         for (unsigned int i = 0; i< mbds->GetNumberOfBlocks(); i++)
           {
           vtkDataObject *next = mbds->GetBlock(i);
-          this->WriteDataObject(next, hasTime, time);
+          const char* blockName = mbds->GetMetaData(i)->Get(vtkCompositeDataSet::NAME());
+          this->WriteDataObject(next, hasTime, time, blockName);
           }
         this->DestinationGroups.pop();
         this->Destination = this->DestinationGroups.top();
@@ -91,7 +95,7 @@ public:
         vtkXdmf3DataSet::VTKToXdmf(
           vtkImageData::SafeDownCast(dataSet),
           this->Destination.get(),
-          hasTime, time);
+          hasTime, time, name);
         break;
         }
       case VTK_RECTILINEAR_GRID:
@@ -99,7 +103,7 @@ public:
         vtkXdmf3DataSet::VTKToXdmf(
           vtkRectilinearGrid::SafeDownCast(dataSet),
           this->Destination.get(),
-          hasTime, time);
+          hasTime, time, name);
         break;
         }
       case VTK_STRUCTURED_GRID:
@@ -107,7 +111,7 @@ public:
         vtkXdmf3DataSet::VTKToXdmf(
           vtkStructuredGrid::SafeDownCast(dataSet),
           this->Destination.get(),
-          hasTime, time);
+          hasTime, time, name);
         break;
         }
       case VTK_POLY_DATA:
@@ -116,7 +120,7 @@ public:
         vtkXdmf3DataSet::VTKToXdmf(
           vtkPointSet::SafeDownCast(dataSet),
           this->Destination.get(),
-          hasTime, time);
+          hasTime, time, name);
         break;
         }
       //case VTK_GRAPH:
@@ -126,7 +130,7 @@ public:
         vtkXdmf3DataSet::VTKToXdmf(
           vtkDirectedGraph::SafeDownCast(dataSet),
           this->Destination.get(),
-          hasTime, time);
+          hasTime, time, name);
         break;
         }
       default:

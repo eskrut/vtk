@@ -22,21 +22,26 @@
 // DON'T PLAY WITH IT YET.
 // .SECTION See Also
 // vtkFrameBufferObject2, vtkRenderbufferObject
-#ifndef __vtkFrameBufferObject_h
-#define __vtkFrameBufferObject_h
+#ifndef vtkFrameBufferObject_h
+#define vtkFrameBufferObject_h
 
 #include "vtkObject.h"
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkSmartPointer.h" // needed for vtkSmartPointer.
 #include "vtkWeakPointer.h" // needed for vtkWeakPointer.
-//BTX
 #include <vector> // for the lists of logical buffers.
-//ETX
+
 
 class vtkRenderWindow;
 class vtkTextureObject;
 class vtkPixelBufferObject;
 class vtkOpenGLRenderWindow;
+class vtkShaderProgram;
+namespace vtkgl
+{
+class VertexArrayObject;
+}
+
 
 class VTKRENDERINGOPENGL2_EXPORT vtkFrameBufferObject : public vtkObject
 {
@@ -74,7 +79,8 @@ public:
   // \pre positive_minY: minY>=0
   // \pre increasing_y: minY<=maxY
   // \pre valid_maxY: maxY<LastSize[1]
-  void RenderQuad(int minX, int maxX, int minY, int maxY);
+  void RenderQuad(int minX, int maxX, int minY, int maxY,
+    vtkShaderProgram *program, vtkgl::VertexArrayObject *vao);
 
   // Description:
   // Make the draw frame buffer active (uses FRAMEBUFFER).
@@ -165,7 +171,6 @@ public:
   // prints detected errors to vtkErrorMacro.
   int CheckFrameBufferStatus(unsigned int mode);
 
-//BTX
 protected:
   // Description:
   // Load all necessary extensions.
@@ -242,7 +247,6 @@ protected:
 private:
   vtkFrameBufferObject(const vtkFrameBufferObject&); // Not implemented.
   void operator=(const vtkFrameBufferObject&); // Not implemented.
-//ETX
 };
 
 #endif

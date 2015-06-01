@@ -69,8 +69,8 @@
 // .SECTION See Also
 // vtkTensorGlyph
 
-#ifndef __vtkGlyph3D_h
-#define __vtkGlyph3D_h
+#ifndef vtkGlyph3D_h
+#define vtkGlyph3D_h
 
 #include "vtkFiltersCoreModule.h" // For export macro
 #include "vtkPolyDataAlgorithm.h"
@@ -267,8 +267,8 @@ protected:
   // glyph the \c input, filling up the \c output based on the filter
   // parameters.
   virtual bool Execute(vtkDataSet* input,
-    vtkInformationVector* sourceVector,
-    vtkPolyData* output, int requestedGhostLevel);
+                       vtkInformationVector* sourceVector,
+                       vtkPolyData* output);
 
   vtkPolyData **Source; // Geometry to copy to each point
   int Scaling; // Determine whether scaling of geometry is performed

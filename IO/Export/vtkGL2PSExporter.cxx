@@ -32,6 +32,7 @@
 #include "vtkIntArray.h"
 #include "vtkLabeledDataMapper.h"
 #include "vtkMapper2D.h"
+#include "vtkMath.h"
 #include "vtkMathTextUtilities.h"
 #include "vtkMatrix4x4.h"
 #include "vtkNew.h"
@@ -68,6 +69,7 @@ vtkGL2PSExporter::vtkGL2PSExporter()
 {
   this->RasterExclusions = NULL;
   this->FilePrefix = NULL;
+  this->BufferSize = 4194304; // 4MB
   this->Title = NULL;
   this->FileFormat = EPS_FILE;
   this->Sort = SIMPLE_SORT;
@@ -89,14 +91,8 @@ vtkGL2PSExporter::vtkGL2PSExporter()
 vtkGL2PSExporter::~vtkGL2PSExporter()
 {
   this->SetRasterExclusions(NULL);
-  if ( this->FilePrefix )
-    {
-    delete [] this->FilePrefix;
-    }
-  if ( this->Title )
-    {
-    delete [] this->Title;
-    }
+  delete [] this->FilePrefix;
+  delete [] this->Title;
 }
 
 void vtkGL2PSExporter::WriteData()
@@ -217,12 +213,19 @@ void vtkGL2PSExporter::WriteData()
 
   vtkDebugMacro(<<"Writing file using GL2PS");
 
+  // Check that the buffer size is sane:
+  if (this->BufferSize < 1024)
+    {
+    vtkDebugMacro("Initial buffer size is too small (" << this->BufferSize
+                  << " bytes). Increasing to 1kb.");
+    this->SetBufferSize(1024);
+    }
+
   // Call gl2ps to generate the file.
-  int buffsize = 0;
+  int buffsize = this->BufferSize;
   int state = GL2PS_OVERFLOW;
   while(state == GL2PS_OVERFLOW)
     {
-    buffsize += 2048*2048;
     gl2psBeginPage(this->Title ? this->Title : "VTK GL2PS Export", "VTK",
                    viewport, format, sort, options, GL_RGBA, 0,
                    NULL, 0, 0, 0, buffsize, fpObj, fName);
@@ -265,6 +268,10 @@ void vtkGL2PSExporter::WriteData()
     this->DrawContextActors(contextActorCol.GetPointer(), renCol);
 
     state = gl2psEndPage();
+    if (state == GL2PS_OVERFLOW)
+      {
+      buffsize += this->BufferSize;
+      }
     }
   fclose(fpObj);
 
@@ -350,6 +357,7 @@ int vtkGL2PSExporter::GetGL2PSSort()
     {
     default:
       vtkDebugMacro(<<"Invalid sort settings, using NO_SORT.");
+      VTK_FALLTHROUGH;
     case NO_SORT:
       return GL2PS_NO_SORT;
     case SIMPLE_SORT:
@@ -365,6 +373,7 @@ int vtkGL2PSExporter::GetGL2PSFormat()
     {
     default:
       vtkDebugMacro(<<"Invalid output format. Using postscript.");
+      VTK_FALLTHROUGH;
     case PS_FILE:
       return GL2PS_PS;
     case EPS_FILE:
@@ -384,6 +393,7 @@ const char *vtkGL2PSExporter::GetFileExtension()
     {
     default:
       vtkDebugMacro(<<"Invalid output format. Using postscript.");
+      VTK_FALLTHROUGH;
     case PS_FILE:
       return "ps";
     case EPS_FILE:
@@ -717,43 +727,95 @@ void vtkGL2PSExporter::DrawTextActor(vtkTextActor *textAct, vtkRenderer *ren)
 }
 
 void vtkGL2PSExporter::DrawTextActor3D(vtkTextActor3D *textAct,
-                                       vtkRenderer *)
+                                       vtkRenderer *ren)
 {
   // Get path
   const char *string = textAct->GetInput();
-  vtkNew<vtkPath> path;
-  vtkNew<vtkTextProperty> tprop;
-  tprop->ShallowCopy(textAct->GetTextProperty());
-  tprop->SetJustificationToLeft(); // Ignored by textactor3d
-  tprop->SetVerticalJustificationToBottom(); // Ignored by textactor3d
+  vtkTextProperty *tprop = textAct->GetTextProperty();
+  vtkNew<vtkPath> textPath;
   vtkTextRenderer *tren = vtkTextRenderer::GetInstance();
-  if (tren)
+
+  if (!tren)
     {
-    tren->StringToPath(tprop.GetPointer(), vtkStdString(string),
-                       path.GetPointer());
+    vtkWarningMacro(<<"Cannot generate path data from 3D text string '"
+                    << string << "': Text renderer unavailable.");
+    return;
     }
-  else
+
+  if (!tren->StringToPath(tprop, vtkStdString(string), textPath.GetPointer(),
+                          vtkTextActor3D::GetRenderedDPI()))
     {
-    vtkWarningMacro(<<"Cannot generate path data from 3D text string: "
-                    << string);
+    vtkWarningMacro(<<"Failed to generate path data from 3D text string '"
+                    << string << "': StringToPath failed.");
     return;
     }
 
   // Get actor info
   vtkMatrix4x4 *actorMatrix = textAct->GetMatrix();
   double *actorBounds = textAct->GetBounds();
-  double rasterPos[3] = {(actorBounds[1] + actorBounds[0]) * 0.5,
-                         (actorBounds[3] + actorBounds[2]) * 0.5,
-                         (actorBounds[5] + actorBounds[4]) * 0.5};
-  double *dcolor = tprop->GetColor();
-  unsigned char actorColor[4] = {
-    static_cast<unsigned char>(dcolor[0]*255),
-    static_cast<unsigned char>(dcolor[1]*255),
-    static_cast<unsigned char>(dcolor[2]*255),
-    static_cast<unsigned char>(tprop->GetOpacity()*255)};
+  double textPos[3] = {(actorBounds[1] + actorBounds[0]) * 0.5,
+                       (actorBounds[3] + actorBounds[2]) * 0.5,
+                       (actorBounds[5] + actorBounds[4]) * 0.5};
 
-  vtkGL2PSUtilities::Draw3DPath(path.GetPointer(), actorMatrix, rasterPos,
-                                actorColor);
+  double *fgColord = tprop->GetColor();
+  unsigned char fgColor[4] = {
+    static_cast<unsigned char>(fgColord[0] * 255),
+    static_cast<unsigned char>(fgColord[1] * 255),
+    static_cast<unsigned char>(fgColord[2] * 255),
+    static_cast<unsigned char>(tprop->GetOpacity() * 255)};
+
+  // Draw the background quad as a path:
+  if (tprop->GetBackgroundOpacity() > 0.f)
+    {
+    double *bgColord = tprop->GetBackgroundColor();
+    unsigned char bgColor[4] = {
+      static_cast<unsigned char>(bgColord[0] * 255),
+      static_cast<unsigned char>(bgColord[1] * 255),
+      static_cast<unsigned char>(bgColord[2] * 255),
+      static_cast<unsigned char>(tprop->GetBackgroundOpacity() * 255)};
+
+    // Get the camera so we can calculate an offset to place the background
+    // behind the text.
+    vtkCamera *cam = ren->GetActiveCamera();
+    vtkMatrix4x4 *mat = cam->GetCompositeProjectionTransformMatrix(
+          ren->GetTiledAspectRatio(), 0., 1.);
+    double forward[3] = {mat->GetElement(2, 0),
+                         mat->GetElement(2, 1),
+                         mat->GetElement(2, 2)};
+    vtkMath::Normalize(forward);
+    double bgPos[3] = {textPos[0] + (forward[0] * 0.0001),
+                       textPos[1] + (forward[1] * 0.0001),
+                       textPos[2] + (forward[2] * 0.0001)};
+
+    vtkTextRenderer::Metrics metrics;
+    if (tren->GetMetrics(tprop, string, metrics,
+                         vtkTextActor3D::GetRenderedDPI()))
+      {
+      vtkNew<vtkPath> bgPath;
+      bgPath->InsertNextPoint(static_cast<double>(metrics.TopLeft.GetX()),
+                              static_cast<double>(metrics.TopLeft.GetY()),
+                              0., vtkPath::MOVE_TO);
+      bgPath->InsertNextPoint(static_cast<double>(metrics.TopRight.GetX()),
+                              static_cast<double>(metrics.TopRight.GetY()),
+                              0., vtkPath::LINE_TO);
+      bgPath->InsertNextPoint(static_cast<double>(metrics.BottomRight.GetX()),
+                              static_cast<double>(metrics.BottomRight.GetY()),
+                              0., vtkPath::LINE_TO);
+      bgPath->InsertNextPoint(static_cast<double>(metrics.BottomLeft.GetX()),
+                              static_cast<double>(metrics.BottomLeft.GetY()),
+                              0., vtkPath::LINE_TO);
+      bgPath->InsertNextPoint(static_cast<double>(metrics.TopLeft.GetX()),
+                              static_cast<double>(metrics.TopLeft.GetY()),
+                              0., vtkPath::LINE_TO);
+
+      vtkGL2PSUtilities::Draw3DPath(bgPath.GetPointer(), actorMatrix, bgPos,
+                                    bgColor);
+      }
+    }
+
+  // Draw the text path:
+  vtkGL2PSUtilities::Draw3DPath(textPath.GetPointer(), actorMatrix, textPos,
+                                fgColor);
 }
 
 void vtkGL2PSExporter::DrawTextMapper(vtkTextMapper *textMap,
@@ -865,7 +927,7 @@ void vtkGL2PSExporter::DrawViewportTextOverlay(const char *string,
   glViewport(viewportPixels[0], viewportPixels[1],
              viewportSpread[0], viewportSpread[1]);
 
-  vtkGL2PSUtilities::DrawString(string, tprop, textPos);
+  vtkGL2PSUtilities::DrawString(string, tprop, textPos, textPos[2] + 1e-6);
 
   glMatrixMode(GL_MODELVIEW);
   glPopMatrix();

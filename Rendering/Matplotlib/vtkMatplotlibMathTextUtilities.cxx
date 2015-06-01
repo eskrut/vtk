@@ -369,6 +369,50 @@ vtkMatplotlibMathTextUtilities::GetFontProperties(vtkTextProperty *tprop)
 }
 
 //----------------------------------------------------------------------------
+void vtkMatplotlibMathTextUtilities::GetJustifiedBBox(int rows, int cols,
+                                                      vtkTextProperty *tprop,
+                                                      int bbox[])
+{
+  bbox[0] = 0;
+  bbox[1] = cols - 1;
+  bbox[2] = 0;
+  bbox[3] = rows - 1;
+
+  int justifyOffset[2];
+  switch (tprop->GetJustification())
+    {
+    default:
+    case VTK_TEXT_LEFT:
+      justifyOffset[0] = 0;
+      break;
+    case VTK_TEXT_CENTERED:
+      justifyOffset[0] = bbox[1] / 2;
+      break;
+    case VTK_TEXT_RIGHT:
+      justifyOffset[0] = bbox[1];
+      break;
+    }
+  switch (tprop->GetVerticalJustification())
+    {
+    default:
+    case VTK_TEXT_BOTTOM:
+      justifyOffset[1] = 0;
+      break;
+    case VTK_TEXT_CENTERED:
+      justifyOffset[1] = bbox[3] / 2;
+      break;
+    case VTK_TEXT_TOP:
+      justifyOffset[1] = bbox[3];
+      break;
+    }
+
+  bbox[0] -= justifyOffset[0];
+  bbox[1] -= justifyOffset[0];
+  bbox[2] -= justifyOffset[1];
+  bbox[3] -= justifyOffset[1];
+}
+
+//----------------------------------------------------------------------------
 void vtkMatplotlibMathTextUtilities::RotateCorners(double angleDeg,
                                                    double corners[4][2],
                                                    double bbox[4])
@@ -414,52 +458,56 @@ void vtkMatplotlibMathTextUtilities::RotateCorners(double angleDeg,
 //----------------------------------------------------------------------------
 // This is more or less ported from vtkFreeTypeTools.
 bool vtkMatplotlibMathTextUtilities::PrepareImageData(vtkImageData *data,
-                                                      int bbox[4])
+                                                      int textBbox[4])
 {
-  int width = bbox[1] - bbox[0] + 1;
-  int height = bbox[3] - bbox[2] + 1;
-  // If the current image data is too small to render the text,
-  // or more than twice as big (too hungry), then resize
-  int imgDims[3], newImgDims[3];
-  data->GetDimensions(imgDims);
+  // Calculate the bbox's dimensions
+  int textDims[2];
+  textDims[0] = (textBbox[1] - textBbox[0] + 1);
+  textDims[1] = (textBbox[3] - textBbox[2] + 1);
 
+  // Calculate the size the image needs to be.
+  int targetDims[3];
+  targetDims[0] = textDims[0];
+  targetDims[1] = textDims[1];
+  targetDims[2] = 1;
+  // Scale to the next highest power of 2 if required.
+  if (this->ScaleToPowerOfTwo)
+    {
+    targetDims[0] = vtkMath::NearestPowerOfTwo(targetDims[0]);
+    targetDims[1] = vtkMath::NearestPowerOfTwo(targetDims[1]);
+    }
+
+  // Calculate the target extent of the image.
+  int targetExtent[6];
+  targetExtent[0] = textBbox[0];
+  targetExtent[1] = textBbox[0] + targetDims[0] - 1;
+  targetExtent[2] = textBbox[2];
+  targetExtent[3] = textBbox[2] + targetDims[1] - 1;
+  targetExtent[4] = 0;
+  targetExtent[5] = 0;
+
+  // Get the actual image extents and increments
+  int imageExtent[6];
+  double imageSpacing[3];
+  data->GetExtent(imageExtent);
+  data->GetSpacing(imageSpacing);
+
+  // Do we need to reallocate the image memory?
   if (data->GetScalarType() != VTK_UNSIGNED_CHAR ||
       data->GetNumberOfScalarComponents() != 4 ||
-      imgDims[0] < width || imgDims[1] < height ||
-      width * 2 < imgDims[0] || height * 2 < imgDims[1])
+      imageExtent[0] != targetExtent[0] ||
+      imageExtent[1] != targetExtent[1] ||
+      imageExtent[2] != targetExtent[2] ||
+      imageExtent[3] != targetExtent[3] ||
+      imageExtent[4] != targetExtent[4] ||
+      imageExtent[5] != targetExtent[5] ||
+      fabs(imageSpacing[0] - 1.0) > 1e-10 ||
+      fabs(imageSpacing[1] - 1.0) > 1e-10 ||
+      fabs(imageSpacing[2] - 1.0) > 1e-10 )
     {
-    // Scale to the next highest power of 2 if required.
-    if (this->ScaleToPowerOfTwo)
-      {
-      newImgDims[0] = newImgDims[1] = 1;
-      while (newImgDims[0] < width)
-        {
-        newImgDims[0] *= 2;
-        }
-      while (newImgDims[1] < height)
-        {
-        newImgDims[1] *= 2;
-        }
-      }
-    else
-      {
-      newImgDims[0] = width;
-      newImgDims[1] = height;
-      }
-    newImgDims[2] = 1;
-
-    // Allocate the new image if needed
-    if (data->GetScalarType() != VTK_UNSIGNED_CHAR ||
-        data->GetNumberOfScalarComponents() != 4 ||
-        newImgDims[0] != imgDims[0] ||
-        newImgDims[1] != imgDims[1] ||
-        newImgDims[2] != imgDims[2])
-      {
-      data->SetExtent(bbox[0], bbox[0] + newImgDims[0] - 1,
-                      bbox[2], bbox[2] + newImgDims[1] - 1,
-                      0, 0);
-      data->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
-      }
+    data->SetSpacing(1.0, 1.0, 1.0);
+    data->SetExtent(targetExtent);
+    data->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
     }
 
   // Clear the image
@@ -471,7 +519,22 @@ bool vtkMatplotlibMathTextUtilities::PrepareImageData(vtkImageData *data,
 
 //----------------------------------------------------------------------------
 bool vtkMatplotlibMathTextUtilities::GetBoundingBox(
-    vtkTextProperty *tprop, const char *str, unsigned int dpi, int bbox[4])
+    vtkTextProperty *tprop, const char *str, int dpi, int bbox[4])
+{
+  vtkTextRenderer::Metrics metrics;
+  if (!this->GetMetrics(tprop, str, dpi, metrics))
+    {
+    return false;
+    }
+  std::copy(metrics.BoundingBox.GetData(), metrics.BoundingBox.GetData() + 4,
+            bbox);
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool vtkMatplotlibMathTextUtilities::GetMetrics(
+    vtkTextProperty *tprop, const char *str, int dpi,
+    vtkTextRenderer::Metrics &metrics)
 {
   if (!this->MaskParser)
     {
@@ -482,20 +545,17 @@ bool vtkMatplotlibMathTextUtilities::GetBoundingBox(
       }
     }
 
-  vtkDebugMacro(<<"Calculating bbox for '" << str << "'");
+  vtkDebugMacro(<<"Calculating metrics for '" << str << "'");
 
   long int rows = 0;
   long int cols = 0;
-  // matplotlib.mathtext seems to mishandle the dpi, this conversion makes the
-  // text size match the images produced by vtkFreeTypeUtilities, as well as the
-  // paths generated by StringToPath
-  long int fontSize = tprop->GetFontSize() * 72.0 / static_cast<float>(dpi);
 
   vtkSmartPyObject resultTuple(PyObject_CallMethod(this->MaskParser,
-                                                const_cast<char*>("to_mask"),
-                                                const_cast<char*>("sii"),
-                                                const_cast<char*>(str),
-                                                fontSize, dpi));
+                                                   const_cast<char*>("to_mask"),
+                                                   const_cast<char*>("sii"),
+                                                   const_cast<char*>(str),
+                                                   tprop->GetFontSize(),
+                                                   dpi));
   if (this->CheckForError(resultTuple.GetPointer()))
     {
     return false;
@@ -521,21 +581,34 @@ bool vtkMatplotlibMathTextUtilities::GetBoundingBox(
     return false;
     }
 
+  int extent[4];
+  this->GetJustifiedBBox(rows, cols, tprop, extent);
 
   // Determine the dimensions of the rotated image
   double angleDeg = tprop->GetOrientation();
   // Corners of original image
-  double corners[4][2] = { {0, 0},
-                           {static_cast<double>(cols), 0},
-                           {0, static_cast<double>(rows)},
-                           {static_cast<double>(cols), static_cast<double>(rows)} };
+  double corners[4][2] = {
+    {static_cast<double>(extent[0]), static_cast<double>(extent[2])},   // TL
+    {static_cast<double>(extent[1]), static_cast<double>(extent[2])},   // TR
+    {static_cast<double>(extent[0]), static_cast<double>(extent[3])},   // BL
+    {static_cast<double>(extent[1]), static_cast<double>(extent[3])} }; // BR
 
   double bboxd[4];
   this->RotateCorners(angleDeg, corners, bboxd);
-  bbox[0] = vtkMath::Ceil(bboxd[0]);
-  bbox[1] = vtkMath::Ceil(bboxd[1]);
-  bbox[2] = vtkMath::Ceil(bboxd[2]);
-  bbox[3] = vtkMath::Ceil(bboxd[3]);
+
+  metrics.BoundingBox[0] = vtkMath::Floor(bboxd[0]);
+  metrics.BoundingBox[1] = vtkMath::Ceil(bboxd[1]);
+  metrics.BoundingBox[2] = vtkMath::Floor(bboxd[2]);
+  metrics.BoundingBox[3] = vtkMath::Ceil(bboxd[3]);
+
+  metrics.TopLeft[0]     = vtkMath::Round(corners[0][0]);
+  metrics.TopLeft[1]     = vtkMath::Round(corners[0][1]);
+  metrics.TopRight[0]    = vtkMath::Round(corners[1][0]);
+  metrics.TopRight[1]    = vtkMath::Round(corners[1][1]);
+  metrics.BottomLeft[0]  = vtkMath::Round(corners[2][0]);
+  metrics.BottomLeft[1]  = vtkMath::Round(corners[2][1]);
+  metrics.BottomRight[0] = vtkMath::Round(corners[3][0]);
+  metrics.BottomRight[1] = vtkMath::Round(corners[3][1]);
 
   return true;
 }
@@ -544,7 +617,7 @@ bool vtkMatplotlibMathTextUtilities::GetBoundingBox(
 bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
                                                   vtkImageData *image,
                                                   vtkTextProperty *tprop,
-                                                  unsigned int dpi,
+                                                  int dpi,
                                                   int textDims[2])
 {
   if (!this->MaskParser)
@@ -561,22 +634,25 @@ bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
   long int rows = 0;
   long int cols = 0;
   long int ind = 0;
-  //long int numPixels = 0;
-  // matplotlib.mathtext seems to mishandle the dpi, this conversion makes the
-  // text size match the images produced by vtkFreeTypeUtilities, as well as the
-  // paths generated by StringToPath
-  long int fontSize = tprop->GetFontSize() * 72.0 / static_cast<float>(dpi);
-  double *dcolor = tprop->GetColor();
-  unsigned char r = static_cast<unsigned char>(dcolor[0] * 255);
-  unsigned char g = static_cast<unsigned char>(dcolor[1] * 255);
-  unsigned char b = static_cast<unsigned char>(dcolor[2] * 255);
-  double alpha = tprop->GetOpacity();
+
+  double *fgColor = tprop->GetColor();
+  unsigned char fgR = static_cast<unsigned char>(fgColor[0] * 255);
+  unsigned char fgG = static_cast<unsigned char>(fgColor[1] * 255);
+  unsigned char fgB = static_cast<unsigned char>(fgColor[2] * 255);
+  double fgA = tprop->GetOpacity();
+
+  double *bgColor = tprop->GetBackgroundColor();
+  unsigned char bgR = static_cast<unsigned char>(bgColor[0] * 255);
+  unsigned char bgG = static_cast<unsigned char>(bgColor[1] * 255);
+  unsigned char bgB = static_cast<unsigned char>(bgColor[2] * 255);
+  double bgA = tprop->GetBackgroundOpacity();
+  bool hasBackground = (static_cast<unsigned char>(bgA * 255) != 0);
 
   vtkSmartPyObject resultTuple(PyObject_CallMethod(this->MaskParser,
-                                                const_cast<char*>("to_mask"),
-                                                const_cast<char*>("sii"),
-                                                const_cast<char*>(str),
-                                                fontSize, dpi));
+                                                   const_cast<char*>("to_mask"),
+                                                   const_cast<char*>("sii"),
+                                                   const_cast<char*>(str),
+                                                   tprop->GetFontSize(), dpi));
   if (this->CheckForError(resultTuple.GetPointer()))
     {
     return false;
@@ -630,13 +706,15 @@ bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
     textDims[1] = rows;
     }
 
-  int bbox[4] = {0, static_cast<int>(cols - 1),
-                 0, static_cast<int>(rows - 1)};
+  // Create justified bounding box.
+  int bbox[4];
+  this->GetJustifiedBBox(rows, cols, tprop, bbox);
+
   this->PrepareImageData(image, bbox);
 
-  for (long int row = rows-1; row >= 0; --row)
+  for (long int row = bbox[3]; row >= bbox[2]; --row)
     {
-    for (long int col = 0; col < cols; ++col)
+    for (long int col = bbox[0]; col <= bbox[1]; ++col)
       {
       // item is borrowed, no need for a smart wrapper
       PyObject *item = PyList_GetItem(list.GetPointer(), ind++);
@@ -644,20 +722,38 @@ bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
         {
         return false;
         }
-      unsigned char val =
-          static_cast<unsigned char>(alpha * PyInt_AsLong(item));
+      const unsigned char val = static_cast<unsigned char>(PyInt_AsLong(item));
       if (this->CheckForError())
         {
         return false;
         }
       unsigned char *ptr =
           static_cast<unsigned char*>(image->GetScalarPointer(col, row, 0));
-      ptr[0] = r;
-      ptr[1] = g;
-      ptr[2] = b;
-      ptr[3] = val;
+
+      if (hasBackground)
+        {
+        const float fg_blend = fgA * (val / 255.f);
+        const float bg_blend = 1.f - fg_blend;
+
+        ptr[0] = static_cast<unsigned char>(bg_blend * bgR + fg_blend * fgR);
+        ptr[1] = static_cast<unsigned char>(bg_blend * bgG + fg_blend * fgG);
+        ptr[2] = static_cast<unsigned char>(bg_blend * bgB + fg_blend * fgB);
+        ptr[3] = static_cast<unsigned char>(255 * (fg_blend + bgA * bg_blend));
+        }
+      else
+        {
+        ptr[0] = fgR;
+        ptr[1] = fgG;
+        ptr[2] = fgB;
+        ptr[3] = static_cast<unsigned char>(val * fgA);
+        }
       }
     }
+
+  // Mark the image data as modified, as it is possible that only
+  // vtkImageData::Get*Pointer methods will be called, which do not update the
+  // MTime.
+  image->Modified();
 
   // Determine the dimensions of the rotated image
   double angleDeg = tprop->GetOrientation();
@@ -676,10 +772,10 @@ bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
                             static_cast<double>(bbox[3])},
                            {static_cast<double>(bbox[1]),
                             static_cast<double>(bbox[3])} };
-  double bbox2[4];
+  double bboxd[4];
 
   // Rotate the corners of the image and determine the bounding box
-  this->RotateCorners(angleDeg, corners, bbox2);
+  this->RotateCorners(angleDeg, corners, bboxd);
 
   // Also rotate the text dimensions.
   if (textDims)
@@ -698,10 +794,10 @@ bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
     textDims[1] = std::ceil(text_bbox[3] - text_bbox[2]);
     }
 
-  bbox[0] = static_cast<int>(bbox2[0]);
-  bbox[1] = static_cast<int>(bbox2[1]);
-  bbox[2] = static_cast<int>(bbox2[2]);
-  bbox[3] = static_cast<int>(bbox2[3]);
+  bbox[0] = vtkMath::Floor(bboxd[0]);
+  bbox[1] = vtkMath::Ceil(bboxd[1]);
+  bbox[2] = vtkMath::Floor(bboxd[2]);
+  bbox[3] = vtkMath::Ceil(bboxd[3]);
 
   // Rotate the temporary image into the returned image:
   vtkNew<vtkTransform> rotation;
@@ -723,7 +819,8 @@ bool vtkMatplotlibMathTextUtilities::RenderString(const char *str,
 //----------------------------------------------------------------------------
 bool vtkMatplotlibMathTextUtilities::StringToPath(const char *str,
                                                   vtkPath *path,
-                                                  vtkTextProperty *tprop)
+                                                  vtkTextProperty *tprop,
+                                                  int dpi)
 {
   if (!this->PathParser)
     {
@@ -758,9 +855,10 @@ bool vtkMatplotlibMathTextUtilities::StringToPath(const char *str,
   // Bounding box for all control points, used for justification
   float cbox[4] = {VTK_FLOAT_MAX, VTK_FLOAT_MAX, VTK_FLOAT_MIN, VTK_FLOAT_MIN};
 
-  // The path is always generated at a font size of 100. Use this factor to
+  // The path is always generated using a 100pt font @72 dpi. Use this factor to
   // recover the font.
-  const float fontScale = ((tprop->GetFontSize()) / 100.);
+  const float fontScale = (tprop->GetFontSize() / 100.f) * (dpi / 72.f) ;
+
   path->Reset();
 
   // Create the font property

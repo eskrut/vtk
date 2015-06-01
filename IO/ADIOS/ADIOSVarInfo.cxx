@@ -1,144 +1,144 @@
-#include "ADIOSVarInfo.h"
+/*=========================================================================
+
+  Program:   Visualization Toolkit
+  Module:    ADIOSVarInfo.h
+
+  Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
+  All rights reserved.
+  See Copyright.txt or http://www.kitware.com/Copyright.htm for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notice for more information.
+
+=========================================================================*/
+
+#include <iterator>
+
 #include "ADIOSUtilities.h"
-#include <cstring>
-#include <stdexcept>
-#include <adios_read.h>
+
+#include "ADIOSVarInfo.h"
+
+namespace ADIOS
+{
 
 //----------------------------------------------------------------------------
-struct ADIOSVarInfo::ADIOSVarInfoImpl
+VarInfo::VarInfo(ADIOS_FILE *f, ADIOS_VARINFO *v)
+: Id(v->varid), Type(v->type), Name(f->var_namelist[v->varid])
 {
-  ADIOSVarInfoImpl(const std::string& name = "", ADIOS_VARINFO *var = NULL)
-  : Name(name), Var(var)
-  { }
+  int err;
 
-  ~ADIOSVarInfoImpl(void)
-  {
-    if(this->Var)
+  // Get extra metadata
+  err = adios_inq_var_stat(f, v, 1, 1);
+  ReadError::TestEq(0, err);
+
+  err = adios_inq_var_blockinfo(f, v);
+  ReadError::TestEq(0, err);
+
+  // Polulate dimensions and determine block step ranges
+  size_t pidMax = 0;
+  int nd = v->ndim;
+  this->Dims.resize(v->sum_nblocks);
+  for(size_t bid = 0; bid < v->sum_nblocks; ++bid)
+    {
+    ADIOS_VARBLOCK &bi = v->blockinfo[bid];
+    if(bi.process_id > pidMax)
       {
-      adios_free_varinfo(this->Var);
+      pidMax = bi.process_id;
       }
-  }
 
-  std::string Name;
-  ADIOS_VARINFO *Var;
-};
-
-//----------------------------------------------------------------------------
-ADIOSVarInfo::ADIOSVarInfo(const std::string& name, void* v)
-: Impl(new ADIOSVarInfo::ADIOSVarInfoImpl(name,
-    reinterpret_cast<ADIOS_VARINFO*>(v)))
-{
-}
-
-//----------------------------------------------------------------------------
-ADIOSVarInfo::~ADIOSVarInfo(void)
-{
-  delete this->Impl;
-}
-
-//----------------------------------------------------------------------------
-std::string ADIOSVarInfo::GetName(void) const
-{
-  return this->Impl->Name;
-}
-
-//----------------------------------------------------------------------------
-int ADIOSVarInfo::GetId(void) const
-{
-  return this->Impl->Var->varid;
-}
-
-//----------------------------------------------------------------------------
-int ADIOSVarInfo::GetType(void) const
-{
-  return ADIOSUtilities::TypeADIOSToVTK(this->Impl->Var->type);
-}
-
-//----------------------------------------------------------------------------
-size_t ADIOSVarInfo::GetNumSteps(void) const
-{
-  return this->Impl->Var->nsteps;
-}
-
-//----------------------------------------------------------------------------
-bool ADIOSVarInfo::IsGlobal(void) const
-{
-  return this->Impl->Var->global == 1;
-}
-
-//----------------------------------------------------------------------------
-bool ADIOSVarInfo::IsScalar(void) const
-{
-  return this->Impl->Var->ndim == 0;
-}
-
-//----------------------------------------------------------------------------
-void ADIOSVarInfo::GetDims(std::vector<size_t>& dims, int block) const
-{
-  dims.resize(this->Impl->Var->ndim);
-  std::copy(
-    this->Impl->Var->blockinfo[block].count,
-    this->Impl->Var->blockinfo[block].count+this->Impl->Var->ndim,
-    dims.begin());
-}
-
-//----------------------------------------------------------------------------
-template<typename T>
-T ADIOSVarInfo::GetValue(int step) const
-{
-  if(ADIOSUtilities::TypeNativeToADIOS<T>::T != this->Impl->Var->type)
-    {
-    throw std::runtime_error("Incompatible type");
+    if(nd > 0)
+      {
+      std::vector<size_t> &dimsBid = this->Dims[bid];
+      dimsBid.reserve(nd);
+      for(size_t n = 0; n < nd; ++n)
+        {
+        dimsBid.push_back(bi.count[n]);
+        }
+      }
     }
-  return reinterpret_cast<const T*>(this->Impl->Var->value)[step];
-}
 
-template<>
-std::string ADIOSVarInfo::GetValue<std::string>(int step) const
-{
-  if(this->Impl->Var->type != ADIOSUtilities::TypeNativeToADIOS<std::string>::T)
+  // Construct the block index
+  this->NumPids = pidMax + 1;
+  this->NumSteps = f->last_step+1;
+  this->StepBlockIndex.clear();
+  this->StepBlockIndex.resize(this->NumSteps*this->NumPids, NULL);
+  size_t bid = 0;
+  for(size_t s = 0; s < v->nsteps; ++s)
     {
-    throw std::runtime_error("Incompatible type");
+    for(size_t b = 0; b < v->nblocks[s]; ++b)
+      {
+      ADIOS_VARBLOCK &bi = v->blockinfo[bid];
+      this->StepBlockIndex[(bi.time_index-1)*this->NumPids+bi.process_id] =
+        new StepBlock(s, b, bid++);
+      }
     }
-  return reinterpret_cast<const char**>(this->Impl->Var->value)[step];
 }
-
-#define INSTANTIATE(T) template T ADIOSVarInfo::GetValue<T>(int) const;
-INSTANTIATE(int8_t)
-INSTANTIATE(int16_t)
-INSTANTIATE(int32_t)
-//INSTANTIATE(int64_t)
-INSTANTIATE(uint8_t)
-INSTANTIATE(uint16_t)
-INSTANTIATE(uint32_t)
-INSTANTIATE(uint64_t)
-INSTANTIATE(vtkIdType)
-INSTANTIATE(float)
-INSTANTIATE(double)
-#undef INSTANTIATE
 
 //----------------------------------------------------------------------------
-template<typename T>
-const T* ADIOSVarInfo::GetAllValues(void) const
+VarInfo::~VarInfo()
 {
-  if(ADIOSUtilities::TypeNativeToADIOS<T>::T != this->Impl->Var->type)
+  // Cleanup the block step index
+  for(std::vector<StepBlock*>::iterator i = this->StepBlockIndex.begin();
+    i != this->StepBlockIndex.end(); ++i)
     {
-    throw std::runtime_error("Incompatible type");
+    delete *i;
     }
-  return reinterpret_cast<const T*>(this->Impl->Var->value);
 }
 
-#define INSTANTIATE(T) \
-template const T* ADIOSVarInfo::GetAllValues<T>(void) const;
-INSTANTIATE(int8_t)
-INSTANTIATE(int16_t)
-INSTANTIATE(int32_t)
-//INSTANTIATE(int64_t)
-INSTANTIATE(uint8_t)
-INSTANTIATE(uint16_t)
-INSTANTIATE(uint32_t)
-INSTANTIATE(uint64_t)
-INSTANTIATE(vtkIdType)
-INSTANTIATE(float)
-INSTANTIATE(double)
-#undef INSTANTIATE
+//----------------------------------------------------------------------------
+const int& VarInfo::GetId() const
+{
+  return this->Id;
+}
+
+//----------------------------------------------------------------------------
+const ADIOS_DATATYPES& VarInfo::GetType() const
+{
+  return this->Type;
+}
+
+//----------------------------------------------------------------------------
+const std::string& VarInfo::GetName(void) const
+{
+  return this->Name;
+}
+
+//----------------------------------------------------------------------------
+size_t VarInfo::GetNumSteps(void) const
+{
+  return this->NumSteps;
+}
+
+//----------------------------------------------------------------------------
+size_t VarInfo::GetNumBlocks(size_t step) const
+{
+  return this->NumPids;
+}
+
+//----------------------------------------------------------------------------
+VarInfo::StepBlock* VarInfo::GetNewestBlockIndex(size_t step, size_t pid) const
+{
+  ReadError::TestEq(true, step < this->NumSteps, "Invalid step");
+  ReadError::TestEq(true, pid < this->NumPids, "Invalid block");
+
+  StepBlock* idx = NULL;
+  for(int curStep = step; !idx && curStep >= 0; --curStep)
+    {
+    idx = this->StepBlockIndex[curStep*this->NumPids+pid];
+    }
+
+  return idx;
+}
+
+//----------------------------------------------------------------------------
+void VarInfo::GetDims(std::vector<size_t>& dims, size_t step, size_t pid) const
+{
+  StepBlock* idx = this->GetNewestBlockIndex(step, pid);
+  ReadError::TestNe<VarInfo::StepBlock*>(NULL, idx, "Variable not available");
+
+  dims.clear();
+  dims = this->Dims[idx->BlockId];
+}
+
+} // End namespace ADIOS

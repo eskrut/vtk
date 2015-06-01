@@ -18,8 +18,8 @@
 // class vtkRenderWindow. vtkWin32OpenGLRenderer interfaces to the standard
 // OpenGL graphics library in the Windows environment.
 
-#ifndef __vtkWin32OpenGLRenderWindow_h
-#define __vtkWin32OpenGLRenderWindow_h
+#ifndef vtkWin32OpenGLRenderWindow_h
+#define vtkWin32OpenGLRenderWindow_h
 
 #include "vtkRenderingOpenGLModule.h" // For export macro
 #include "vtkOpenGLRenderWindow.h"
@@ -221,6 +221,8 @@ public:
   // Description:
   // Change the shape of the cursor
   virtual void SetCurrentCursor(int);
+
+  virtual bool DetectDPI();
 
   // Description:
   // Override the default implementation so that we can actively switch between

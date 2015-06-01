@@ -17,12 +17,16 @@
 // vtkLongLongArray is an array of values of type long long.
 // It provides methods for insertion and retrieval of values and will
 // automatically resize itself to hold new data.
+//
+// This class should not be used directly, as it only exists on systems
+// where the long long type is defined.  If you need a 64 bit integer
+// data array, use vtkTypeInt64Array instead.
 
-#ifndef __vtkLongLongArray_h
-#define __vtkLongLongArray_h
+#ifndef vtkLongLongArray_h
+#define vtkLongLongArray_h
 
 // Tell the template header how to give our superclass a DLL interface.
-#if !defined(__vtkLongLongArray_cxx)
+#if !defined(vtkLongLongArray_cxx)
 # define VTK_DATA_ARRAY_TEMPLATE_TYPE long long
 #endif
 

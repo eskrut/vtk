@@ -35,8 +35,8 @@
 // .SECTION See also
 // vtkCommand vtkTimeStamp
 
-#ifndef __vtkObject_h
-#define __vtkObject_h
+#ifndef vtkObject_h
+#define vtkObject_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObjectBase.h"
@@ -73,11 +73,11 @@ public:
 
   // Description:
   // Get the value of the debug flag.
-  unsigned char GetDebug();
+  bool GetDebug();
 
   // Description:
-  // Set the value of the debug flag. A non-zero value turns debugging on.
-  void SetDebug(unsigned char debugFlag);
+  // Set the value of the debug flag. A true value turns debugging on.
+  void SetDebug(bool debugFlag);
 
   // Description:
   // This method is called when vtkErrorMacro executes. It allows
@@ -223,7 +223,7 @@ protected:
   virtual void RegisterInternal(vtkObjectBase*, int check);
   virtual void UnRegisterInternal(vtkObjectBase*, int check);
 
-  unsigned char     Debug;      // Enable debug messages
+  bool     Debug;      // Enable debug messages
   vtkTimeStamp      MTime;      // Keep track of modification time
   vtkSubjectHelper *SubjectHelper; // List of observers on this object
 

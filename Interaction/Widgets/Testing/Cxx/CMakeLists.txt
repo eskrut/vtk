@@ -12,7 +12,6 @@ vtk_add_test_cxx(${vtk-module}CxxTests tests
   TestBiDimensionalWidget.cxx
   TestBorderWidget.cxx
   TestBrokenLineWidget.cxx
-  TestButtonWidget.cxx
   TestCameraWidget.cxx
   TestCaptionWidget.cxx
   TestCellCentersPointPlacer.cxx
@@ -28,7 +27,6 @@ vtk_add_test_cxx(${vtk-module}CxxTests tests
   TestHandleWidget2D.cxx
   TestHandleWidget.cxx
   TestImageActorContourWidget.cxx
-  TestImageCroppingRegionsWidget.cxx
   TestImageTracerWidget.cxx
   TestImplicitPlaneWidget2b.cxx
   TestImplicitPlaneWidget2.cxx
@@ -74,8 +72,11 @@ vtk_add_test_cxx(${vtk-module}CxxTests no_valid_tests
   vtkHoverWidgetTest1.cxx
   vtkLineRepresentationTest1.cxx
   vtkLineWidget2Test1.cxx
+  vtkPolyLineRepresentationTest1.cxx
+  vtkPolyLineWidgetTest1.cxx
   vtkSeedRepresentationTest1.cxx
   vtkSeedWidgetTest1.cxx
+  vtkSplineRepresentationTest1.cxx
   vtkSplineWidget2Test1.cxx
   vtkTextRepresentationTest1.cxx
   vtkTextWidgetTest1.cxx
@@ -104,6 +105,14 @@ if(NOT VTK_OPENGL_HAS_OSMESA)
     )
 endif()
 
+# These tests depend on volume rendering classes not build for OpenGL2
+if(VTK_RENDERING_BACKEND STREQUAL "OpenGL")
+  vtk_add_test_cxx(${vtk-module}CxxTests tests
+    TestButtonWidget.cxx
+    TestImageCroppingRegionsWidget.cxx
+    )
+endif()
+
 set(all_tests
   ${tests}
   ${no_valid_tests}
@@ -129,3 +138,12 @@ if(NOT VTK_OPENGL_HAS_OSMESA)
   set_tests_properties(${vtk-module}Cxx-TestPickingManagerSeedWidget
     PROPERTIES TIMEOUT ${VTK_TEST_TIMEOUT_TestPickingManagerSeedWidget})
 endif()
+
+# On some machines this test takes ~220 seconds to complete, allow for some
+# extra time
+if(NOT VTK_TEST_TIMEOUT_TestSphereHandleWidget)
+  set(VTK_TEST_TIMEOUT_TestSphereHandleWidget 300)
+endif()
+set_tests_properties(${vtk-module}Cxx-TestSphereHandleWidget
+    PROPERTIES TIMEOUT ${VTK_TEST_TIMEOUT_TestSphereHandleWidget}
+               RUN_SERIAL ON)

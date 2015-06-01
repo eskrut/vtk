@@ -51,8 +51,8 @@
 // .SECTION See Also
 // vtkGenericAdaptorCell vtkDataSet
 
-#ifndef __vtkGenericDataSet_h
-#define __vtkGenericDataSet_h
+#ifndef vtkGenericDataSet_h
+#define vtkGenericDataSet_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkDataObject.h"
@@ -222,7 +222,7 @@ public:
   vtkGetObjectMacro(Tessellator,vtkGenericCellTessellator);
 
   // Description:
-  // Actual size of the data in kilobytes; only valid after the pipeline has
+  // Actual size of the data in kibibytes (1024 bytes); only valid after the pipeline has
   // updated. It is guaranteed to be greater than or equal to the memory
   // required to represent the data.
   virtual unsigned long GetActualMemorySize();

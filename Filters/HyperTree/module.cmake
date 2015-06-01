@@ -10,7 +10,7 @@ vtk_module(vtkFiltersHyperTree
     vtkRenderingAnnotation
     vtkTestingRendering
     vtkInteractionStyle
-    vtkRenderingFreeTypeOpenGL
+    vtkRendering${VTK_RENDERING_BACKEND}
   KIT
     vtkFilters
   )

@@ -12,13 +12,22 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkOpenGLError_h
-#define __vtkOpenGLError_h
+#ifndef vtkOpenGLError_h
+#define vtkOpenGLError_h
 
 #include "vtkgl.h"
 #include "vtkSetGet.h"
 
+#ifndef NDEBUG
+// debug build.
 #cmakedefine VTK_REPORT_OPENGL_ERRORS
+#else // NDEBUG
+// release build
+#cmakedefine VTK_REPORT_OPENGL_ERRORS_IN_RELEASE_BUILDS
+#if defined(VTK_REPORT_OPENGL_ERRORS_IN_RELEASE_BUILDS)
+#cmakedefine VTK_REPORT_OPENGL_ERRORS
+#endif // defined(VTK_REPORT_OPENGL_ERRORS_IN_RELEASE_BUILDS)
+#endif // NDEBUG
 
 // Description:
 // The following functions can be used to detect and report, and/or
@@ -62,34 +71,24 @@ const char *vtkOpenGLStrError(unsigned int code)
     {
     case GL_NO_ERROR:
       return "No error";
-      break;
     case GL_INVALID_ENUM:
       return "Invalid enum";
-      break;
     case GL_INVALID_VALUE:
       return "Invalid value";
-      break;
     case GL_INVALID_OPERATION:
       return "Invalid operation";
-      break;
     case GL_STACK_OVERFLOW:
       return "Stack overflow";
-      break;
     case GL_STACK_UNDERFLOW:
       return "Stack underflow";
-      break;
     case GL_OUT_OF_MEMORY:
       return "Out of memory";
-      break;
     case vtkgl::TABLE_TOO_LARGE:
       return "Table too large";
-      break;
     case vtkgl::INVALID_FRAMEBUFFER_OPERATION_EXT:
       return "Invalid framebuffer operation";
-      break;
     case vtkgl::TEXTURE_TOO_LARGE_EXT:
       return "Texture too large";
-      break;
     }
   return "Unknown error";
 }

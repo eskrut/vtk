@@ -32,8 +32,8 @@
 // array. This avoids the overhead associated with parent/child pointers,
 // and frequent memory allocation and deallocation.
 
-#ifndef __vtkPriorityQueue_h
-#define __vtkPriorityQueue_h
+#ifndef vtkPriorityQueue_h
+#define vtkPriorityQueue_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -132,7 +132,7 @@ private:
 inline double vtkPriorityQueue::DeleteId(vtkIdType id)
 {
   double priority=VTK_DOUBLE_MAX;
-  int loc;
+  vtkIdType loc;
 
   if ( id <= this->ItemLocation->GetMaxId() &&
   (loc=this->ItemLocation->GetValue(id)) != -1 )
@@ -144,7 +144,7 @@ inline double vtkPriorityQueue::DeleteId(vtkIdType id)
 
 inline double vtkPriorityQueue::GetPriority(vtkIdType id)
 {
-  int loc;
+  vtkIdType loc;
 
   if ( id <= this->ItemLocation->GetMaxId() &&
   (loc=this->ItemLocation->GetValue(id)) != -1 )

@@ -14,8 +14,8 @@
 =========================================================================*/
 // .NAME vtkEnSightReader - superclass for EnSight file readers
 
-#ifndef __vtkEnSightReader_h
-#define __vtkEnSightReader_h
+#ifndef vtkEnSightReader_h
+#define vtkEnSightReader_h
 
 #include "vtkIOEnSightModule.h" // For export macro
 #include "vtkGenericEnSightReader.h"
@@ -115,6 +115,8 @@ protected:
   virtual int RequestData(vtkInformation*,
                           vtkInformationVector**,
                           vtkInformationVector*);
+
+  virtual void ClearForNewCaseFileName();
 
   // Description:
   // Set the Measured file name.

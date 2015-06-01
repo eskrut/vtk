@@ -25,8 +25,8 @@
 // Older versions can be converted to the newer versions using
 // vtkXMLHierarchicalBoxDataFileConverter.
 
-#ifndef __vtkXMLUniformGridAMRReader_h
-#define __vtkXMLUniformGridAMRReader_h
+#ifndef vtkXMLUniformGridAMRReader_h
+#define vtkXMLUniformGridAMRReader_h
 
 #include "vtkIOXMLModule.h" // For export macro
 #include "vtkXMLCompositeDataReader.h"
@@ -57,12 +57,6 @@ public:
 protected:
   vtkXMLUniformGridAMRReader();
   ~vtkXMLUniformGridAMRReader();
-
-  // Test if the reader can read a file with the given version number.
-  virtual int CanReadFileVersion(int major, int minor)
-    {
-    return (major == 1 && minor == 1)? 1 : 0;
-    }
 
   // Description:
   // This method is used by CanReadFile() to check if the reader can read an XML

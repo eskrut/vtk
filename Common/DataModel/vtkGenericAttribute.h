@@ -24,8 +24,8 @@
 // array). It adopts an iterator interface, and allows attributes to be
 // associated with points, edges, faces, or edges.
 
-#ifndef __vtkGenericAttribute_h
-#define __vtkGenericAttribute_h
+#ifndef vtkGenericAttribute_h
+#define vtkGenericAttribute_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkObject.h"
@@ -90,7 +90,7 @@ class VTKCOMMONDATAMODEL_EXPORT vtkGenericAttribute : public vtkObject
   virtual vtkIdType GetSize() = 0;
 
   // Description:
-  // Size in kilobytes taken by the attribute.
+  // Size in kibibytes (1024 bytes) taken by the attribute.
   virtual unsigned long GetActualMemorySize() = 0;
 
   // Description:

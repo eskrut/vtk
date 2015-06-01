@@ -33,6 +33,7 @@
 #include "vtkColorSeries.h"
 #include "vtkStringArray.h"
 #include "vtkNew.h"
+#include "vtkLookupTable.h"
 
 #include "vtkObjectFactory.h"
 
@@ -118,44 +119,6 @@ void CopyToPointsSwitch(vtkPoints2D *points, vtkPoints2D *previousPoints, A *a,
     }
 }
 
-// Indexed vector for sorting
-struct vtkIndexedVector2f
-{
-  size_t index;
-  vtkVector2f pos;
-};
-
-// Compare two vtkIndexedVector2f, in X component only
-bool compVector3fX(const vtkIndexedVector2f& v1,
-                   const vtkIndexedVector2f& v2)
-{
-  if (v1.pos.GetX() < v2.pos.GetX())
-    {
-    return true;
-    }
-  else
-    {
-    return false;
-    }
-}
-
-class VectorPIMPL : public std::vector<vtkIndexedVector2f>
-{
-public:
-  VectorPIMPL(vtkVector2f* array, size_t n)
-    : std::vector<vtkIndexedVector2f>()
-  {
-    this->reserve(n);
-    for (size_t i = 0; i < n; ++i)
-      {
-      vtkIndexedVector2f tmp;
-      tmp.index = i;
-      tmp.pos = array[i];
-      this->push_back(tmp);
-      }
-  }
-};
-
 } // namespace
 
 //-----------------------------------------------------------------------------
@@ -171,6 +134,7 @@ class vtkPlotBarSegment : public vtkObject {
       this->Points = NULL;
       this->Sorted = NULL;
       this->Previous = NULL;
+      this->Colors = NULL;
       }
 
     ~vtkPlotBarSegment()
@@ -233,6 +197,10 @@ class vtkPlotBarSegment : public vtkObject {
 
       for (int i = 0; i < n; ++i)
         {
+        if (this->Colors)
+          {
+          painter->GetBrush()->SetColor(vtkColor4ub(this->Colors->GetPointer(i * 4)));
+          }
         if (orientation == vtkPlotBar::VERTICAL)
           {
           if (p)
@@ -266,7 +234,7 @@ class vtkPlotBarSegment : public vtkObject {
         {
         return;
         }
-      painter->GetBrush()->SetColor(255, 50, 0, 150);
+      painter->ApplyBrush(this->Bar->GetSelectionBrush());
       for (vtkIdType j = 0; j < selection->GetNumberOfTuples(); ++j)
         {
         int i = selection->GetValue(j);
@@ -332,7 +300,7 @@ class vtkPlotBarSegment : public vtkObject {
       // Set up our search array, use the STL lower_bound algorithm
       VectorPIMPL::iterator low;
       VectorPIMPL &v = *this->Sorted;
-      low = std::lower_bound(v.begin(), v.end(), lowPoint, compVector3fX);
+      low = std::lower_bound(v.begin(), v.end(), lowPoint);
 
       while (low != v.end())
         {
@@ -367,7 +335,7 @@ class vtkPlotBarSegment : public vtkObject {
         vtkVector2f* data =
             static_cast<vtkVector2f*>(this->Points->GetVoidPointer(0));
         this->Sorted = new VectorPIMPL(data, n);
-        std::sort(this->Sorted->begin(), this->Sorted->end(), compVector3fX);
+        std::sort(this->Sorted->begin(), this->Sorted->end());
         }
     }
 
@@ -403,7 +371,7 @@ class vtkPlotBarSegment : public vtkObject {
       // Set up our search array, use the STL lower_bound algorithm
       VectorPIMPL::iterator low;
       VectorPIMPL &v = *this->Sorted;
-      low = std::lower_bound(v.begin(), v.end(), lowPoint, compVector3fX);
+      low = std::lower_bound(v.begin(), v.end(), lowPoint);
 
       std::vector<vtkIdType> selected;
 
@@ -447,11 +415,42 @@ class vtkPlotBarSegment : public vtkObject {
         }
       }
 
+    // Indexed vector for sorting
+    struct vtkIndexedVector2f
+    {
+      size_t index;
+      vtkVector2f pos;
+
+      // Compare two vtkIndexedVector2f, in X component only
+      bool operator<(const vtkIndexedVector2f& v2) const
+        {
+        return (this->pos.GetX() < v2.pos.GetX());
+        }
+    };
+
+    class VectorPIMPL : public std::vector<vtkIndexedVector2f>
+    {
+    public:
+      VectorPIMPL(vtkVector2f* array, size_t n)
+        : std::vector<vtkIndexedVector2f>()
+      {
+        this->reserve(n);
+        for (size_t i = 0; i < n; ++i)
+          {
+          vtkIndexedVector2f tmp;
+          tmp.index = i;
+          tmp.pos = array[i];
+          this->push_back(tmp);
+          }
+      }
+    };
+
     vtkSmartPointer<vtkPlotBarSegment> Previous;
     vtkSmartPointer<vtkPoints2D> Points;
     vtkPlotBar *Bar;
     VectorPIMPL* Sorted;
     vtkVector2d ScalingFactor;
+    vtkUnsignedCharArray *Colors;
     };
 
 vtkStandardNewMacro(vtkPlotBarSegment);
@@ -552,6 +551,9 @@ vtkPlotBar::vtkPlotBar()
   this->Offset = 1.0;
   this->ColorSeries = NULL;
   this->Orientation = vtkPlotBar::VERTICAL;
+  this->ScalarVisibility = false;
+  this->LogX = false;
+  this->LogY = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -566,6 +568,41 @@ vtkPlotBar::~vtkPlotBar()
 }
 
 //-----------------------------------------------------------------------------
+void vtkPlotBar::Update()
+{
+  if (!this->Visible)
+    {
+    return;
+    }
+  // First check if we have an input
+  vtkTable *table = this->Data->GetInput();
+  if (!table)
+    {
+    vtkDebugMacro(<< "Update event called with no input table set.");
+    return;
+    }
+  else if(this->Data->GetMTime() > this->BuildTime ||
+          table->GetMTime() > this->BuildTime ||
+          (this->LookupTable && this->LookupTable->GetMTime() > this->BuildTime) ||
+          this->MTime > this->BuildTime)
+    {
+    vtkDebugMacro(<< "Updating cached values.");
+    this->UpdateTableCache(table);
+    }
+  else if ((this->XAxis->GetMTime() > this->BuildTime) ||
+           (this->YAxis->GetMTime() > this->BuildTime))
+    {
+    if ((this->LogX != this->XAxis->GetLogScale()) ||
+        (this->LogY != this->YAxis->GetLogScale()))
+      {
+      this->LogX = this->XAxis->GetLogScale();
+      this->LogY = this->YAxis->GetLogScale();
+      this->UpdateTableCache(table);
+      }
+    }
+}
+
+//-----------------------------------------------------------------------------
 bool vtkPlotBar::Paint(vtkContext2D *painter)
 {
   // This is where everything should be drawn, or dispatched to other methods.
@@ -574,33 +611,6 @@ bool vtkPlotBar::Paint(vtkContext2D *painter)
   if (!this->Visible)
     {
     return false;
-    }
-
-  // First check if we have an input
-  vtkTable *table = this->Data->GetInput();
-  if (!table)
-    {
-    vtkDebugMacro(<< "Paint event called with no input table set.");
-    return false;
-    }
-  else if(this->Data->GetMTime() > this->BuildTime ||
-          this->GetXAxis()->GetMTime() > this->BuildTime ||
-          this->GetYAxis()->GetMTime() > this->BuildTime ||
-          table->GetMTime() > this->BuildTime ||
-          this->MTime > this->BuildTime)
-    {
-    vtkDebugMacro(<< "Paint event called with outdated table cache. Updating.");
-    this->UpdateTableCache(table);
-    }
-
-  // Now add some decorations for our selected points...
-  if (this->Selection)
-    {
-    vtkDebugMacro(<<"Selection set " << this->Selection->GetNumberOfTuples());
-    }
-  else
-    {
-    vtkDebugMacro("No selection set.");
     }
 
   this->Private->PaintSegments(painter,this->ColorSeries, this->Pen,this->Brush,
@@ -852,6 +862,31 @@ bool vtkPlotBar::UpdateTableCache(vtkTable *table)
   vtkPlotBarSegment *prev = this->Private->AddSegment(x, y, this->GetXAxis(),
                                                       this->GetYAxis());
 
+  // Additions for color mapping
+  if (this->ScalarVisibility && !this->ColorArrayName.empty())
+    {
+    vtkDataArray* c =
+      vtkDataArray::SafeDownCast(table->GetColumnByName(this->ColorArrayName));
+    // TODO: Should add support for categorical coloring & try enum lookup
+    if (c)
+      {
+      if (!this->LookupTable)
+        {
+        this->CreateDefaultLookupTable();
+        }
+      this->Colors = this->LookupTable->MapScalars(c,
+                                                   VTK_COLOR_MODE_MAP_SCALARS,
+                                                   -1);
+      prev->Colors = this->Colors;
+      this->Colors->Delete();
+      }
+    else
+      {
+      this->Colors = NULL;
+      prev->Colors = NULL;
+      }
+    }
+
   std::map< int, std::string >::iterator it;
 
   for ( it = this->Private->AdditionalSeries.begin();
@@ -917,6 +952,104 @@ vtkColorSeries *vtkPlotBar::GetColorSeries()
 }
 
 //-----------------------------------------------------------------------------
+void vtkPlotBar::SetLookupTable(vtkScalarsToColors *lut)
+{
+  if (this->LookupTable != lut)
+    {
+    this->LookupTable = lut;
+    this->Modified();
+    }
+}
+
+//-----------------------------------------------------------------------------
+vtkScalarsToColors *vtkPlotBar::GetLookupTable()
+{
+  if (!this->LookupTable)
+    {
+    this->CreateDefaultLookupTable();
+    }
+  return this->LookupTable.Get();
+}
+
+//-----------------------------------------------------------------------------
+void vtkPlotBar::CreateDefaultLookupTable()
+{
+  vtkSmartPointer<vtkLookupTable> lut = vtkSmartPointer<vtkLookupTable>::New();
+  // rainbow - blue to red
+  lut->SetHueRange(0.6667, 0.0);
+  lut->Build();
+  double bounds[4];
+  this->GetBounds(bounds);
+  lut->SetRange(bounds[0], bounds[1]);
+  this->LookupTable = lut;
+}
+
+//-----------------------------------------------------------------------------
+void vtkPlotBar::SelectColorArray(const vtkStdString& arrayName)
+{
+  if (this->ColorArrayName == arrayName)
+    {
+    return;
+    }
+  vtkTable *table = this->Data->GetInput();
+  if (!table)
+    {
+    vtkWarningMacro(<< "SelectColorArray called with no input table set.");
+    return;
+    }
+  for (vtkIdType i = 0; i < table->GetNumberOfColumns(); ++i)
+    {
+    if (arrayName == table->GetColumnName(i))
+      {
+      this->ColorArrayName = arrayName;
+      this->Modified();
+      return;
+      }
+    }
+  vtkDebugMacro(<< "SelectColorArray called with invalid column name.");
+  this->ColorArrayName = "";
+  this->Modified();
+  return;
+}
+
+//-----------------------------------------------------------------------------
+void vtkPlotBar::SelectColorArray(vtkIdType arrayNum)
+{
+  vtkTable *table = this->Data->GetInput();
+  if (!table)
+    {
+    vtkWarningMacro(<< "SelectColorArray called with no input table set.");
+    return;
+    }
+  vtkDataArray *col = vtkDataArray::SafeDownCast(table->GetColumn(arrayNum));
+  // TODO: Should add support for categorical coloring & try enum lookup
+  if (!col)
+    {
+    vtkDebugMacro(<< "SelectColorArray called with invalid column index");
+    return;
+    }
+  else
+    {
+    const char *arrayName = table->GetColumnName(arrayNum);
+    if (this->ColorArrayName == arrayName || arrayName == 0)
+      {
+      return;
+      }
+    else
+      {
+      this->ColorArrayName = arrayName;
+      this->Modified();
+      }
+    }
+}
+
+//-----------------------------------------------------------------------------
+vtkStdString vtkPlotBar::GetColorArrayName()
+{
+  return this->ColorArrayName;
+}
+
+//-----------------------------------------------------------------------------
 bool vtkPlotBar::SelectPoints(const vtkVector2f& min, const vtkVector2f& max)
 {
   if (!this->Selection)
@@ -971,4 +1104,37 @@ vtkStdString vtkPlotBar::GetTooltipLabel(const vtkVector2d &plotPos,
       }
     }
   return tooltipLabel;
+}
+
+//-----------------------------------------------------------------------------
+int vtkPlotBar::GetBarsCount()
+{
+  vtkTable *table = this->Data->GetInput();
+  if (!table)
+    {
+    vtkWarningMacro(<< "GetBarsCount called with no input table set.");
+    return 0;
+    }
+  vtkDataArray* x = this->Data->GetInputArrayToProcess(0, table);
+  return x ? x->GetNumberOfTuples() : 0;
+}
+
+//-----------------------------------------------------------------------------
+void vtkPlotBar::GetDataBounds(double bounds[2])
+{
+  assert(bounds);
+  // Get the x and y arrays (index 0 and 1 respectively)
+  vtkTable *table = this->Data->GetInput();
+  if (!table)
+    {
+    vtkWarningMacro(<< "GetDataBounds called with no input table set.");
+    bounds[0] = VTK_DOUBLE_MAX;
+    bounds[1] = VTK_DOUBLE_MIN;
+    return;
+    }
+  vtkDataArray* x = this->Data->GetInputArrayToProcess(0, table);
+  if (x)
+    {
+    x->GetRange(bounds);
+    }
 }

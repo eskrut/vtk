@@ -31,8 +31,8 @@
 // vtkUnsignedShortArray vtkIntArray vtkUnsignedIntArray vtkLongArray
 // vtkUnsignedLongArray vtkDoubleArray vtkDoubleArray
 
-#ifndef __vtkDataArray_h
-#define __vtkDataArray_h
+#ifndef vtkDataArray_h
+#define vtkDataArray_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkAbstractArray.h"
@@ -41,6 +41,7 @@ class vtkDoubleArray;
 class vtkIdList;
 class vtkInformationDoubleVectorKey;
 class vtkLookupTable;
+class vtkPoints;
 
 class VTKCOMMONCORE_EXPORT vtkDataArray : public vtkAbstractArray
 {
@@ -145,6 +146,7 @@ public:
   double* GetTuple2(vtkIdType i);
   double* GetTuple3(vtkIdType i);
   double* GetTuple4(vtkIdType i);
+  double* GetTuple6(vtkIdType i);
   double* GetTuple9(vtkIdType i);
 
   // Description:
@@ -163,6 +165,8 @@ public:
   void SetTuple3(vtkIdType i, double val0, double val1, double val2);
   void SetTuple4(vtkIdType i, double val0, double val1, double val2,
                  double val3);
+  void SetTuple6(vtkIdType i, double val0, double val1, double val2,
+                 double val3, double val4, double val5);
   void SetTuple9(vtkIdType i, double val0, double val1, double val2,
                  double val3, double val4, double val5, double val6,
                  double val7, double val8);
@@ -272,7 +276,7 @@ public:
   virtual void* WriteVoidPointer(vtkIdType id, vtkIdType number) = 0;
 
   // Description:
-  // Return the memory in kilobytes consumed by this data array. Used to
+  // Return the memory in kibibytes (1024 bytes) consumed by this data array. Used to
   // support streaming and reading/writing data. The value returned is
   // guaranteed to be greater than or equal to the memory required to
   // actually represent the data represented by this object. The
@@ -392,6 +396,9 @@ public:
   virtual int GetArrayType() { return DataArray; }
 
 protected:
+
+  friend class vtkPoints;
+
   // Description:
   // Compute the range for a specific component. If comp is set -1
   // then L2 norm is computed on all components. Call ClearRange

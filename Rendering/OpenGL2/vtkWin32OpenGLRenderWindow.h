@@ -18,8 +18,8 @@ PURPOSE.  See the above copyright notice for more information.
 // class vtkRenderWindow. vtkWin32OpenGL2Renderer interfaces to the standard
 // OpenGL graphics library in the Windows/NT environment..
 
-#ifndef __vtkWin32OpenGL2RenderWindow_h
-#define __vtkWin32OpenGL2RenderWindow_h
+#ifndef vtkWin32OpenGL2RenderWindow_h
+#define vtkWin32OpenGL2RenderWindow_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkOpenGLRenderWindow.h"
@@ -111,7 +111,6 @@ public:
   // Sets the HWND id of the window that WILL BE created.
   void SetParentInfo(char *);
 
-  //BTX
   virtual void *GetGenericDisplayId() {return (void *)this->ContextId;};
   virtual void *GetGenericWindowId()  {return (void *)this->WindowId;};
   virtual void *GetGenericParentId()  {return (void *)this->ParentId;};
@@ -150,8 +149,6 @@ public:
   // This is the generic prototype as required by the vtkRenderWindow
   // parent.
   virtual void SetNextWindowId(void *arg);
-
-  //ETX
 
   // Description:
   // Prescribe that the window be created in a stereo-capable mode. This
@@ -199,8 +196,9 @@ public:
   // Description:
   // Initialize OpenGL for this window.
   virtual void SetupPalette(HDC hDC);
-  virtual void SetupPixelFormat(HDC hDC, DWORD dwFlags, int debug,
-                                int bpp=16, int zbpp=16);
+  virtual void SetupPixelFormatPaletteAndContext(
+    HDC hDC, DWORD dwFlags, int debug,
+    int bpp=16, int zbpp=16);
 
   // Description:
   // Clean up device contexts, rendering contexts, etc.
@@ -218,6 +216,8 @@ public:
   // Description:
   // Change the shape of the cursor
   virtual void SetCurrentCursor(int);
+
+  virtual bool DetectDPI();
 
   // Description:
   // Override the default implementation so that we can actively switch between
@@ -254,14 +254,12 @@ protected:
 
   int CreatingOffScreenWindow; // to avoid recursion (and memory leaks...)
 
-  //BTX
   // message handler
   virtual LRESULT MessageProc(HWND hWnd, UINT message,
                               WPARAM wParam, LPARAM lParam);
 
   static LRESULT APIENTRY WndProc(HWND hWnd, UINT message,
                                   WPARAM wParam, LPARAM lParam);
-  //ETX
   int CursorHidden;
   int ForceMakeCurrent;
 

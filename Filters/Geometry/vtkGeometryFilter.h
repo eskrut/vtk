@@ -46,8 +46,8 @@
 // vtkImageDataGeometryFilter vtkStructuredGridGeometryFilter
 // vtkExtractGeometry vtkExtractVOI
 
-#ifndef __vtkGeometryFilter_h
-#define __vtkGeometryFilter_h
+#ifndef vtkGeometryFilter_h
+#define vtkGeometryFilter_h
 
 #include "vtkFiltersGeometryModule.h" // For export macro
 #include "vtkPolyDataAlgorithm.h"
@@ -139,8 +139,8 @@ protected:
   virtual int FillInputPortInformation(int port, vtkInformation *info);
 
   //special cases for performance
-  void PolyDataExecute(vtkDataSet *, vtkPolyData *, vtkInformation *);
-  void UnstructuredGridExecute(vtkDataSet *, vtkPolyData *, vtkInformation *);
+  void PolyDataExecute(vtkDataSet *, vtkPolyData *);
+  void UnstructuredGridExecute(vtkDataSet *, vtkPolyData *);
   void StructuredGridExecute(vtkDataSet *, vtkPolyData *, vtkInformation *);
   int RequestUpdateExtent(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
 

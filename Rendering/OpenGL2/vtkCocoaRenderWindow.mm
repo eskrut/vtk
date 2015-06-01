@@ -58,8 +58,8 @@ vtkStandardNewMacro(vtkCocoaRenderWindow);
 // Designated initializer
 - (id)initWithRenderWindow:(vtkCocoaRenderWindow *)inRenderWindow;
 
-- (void)start;
-- (void)stop;
+- (void)startObservations;
+- (void)stopObservations;
 
 @end
 
@@ -78,108 +78,118 @@ vtkStandardNewMacro(vtkCocoaRenderWindow);
 }
 
 //----------------------------------------------------------------------------
-- (void)start
+- (void)startObservations
 {
-  if (_renWin != NULL)
-    {
-    NSWindow *win = reinterpret_cast<NSWindow *>(_renWin->GetRootWindow());
-    if (win != nil)
-      {
-      // Receive notifications of this, and only this, window's closing.
-      // In response, we will stop the runloop.
-      NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-      [nc addObserver:self
-             selector:@selector(windowWillClose:)
-                 name:NSWindowWillCloseNotification
-               object:win];
-      }
+  assert(_renWin);
 
-    NSView *view = reinterpret_cast<NSView *>(_renWin->GetWindowId());
-      if (view != nil)
-        {
-        // Receive notifications of this, and only this, view's frame changing.
-        NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-        [nc addObserver:self
-               selector:@selector(viewFrameDidChange:)
-                   name:NSViewFrameDidChangeNotification
-                 object:view];
-        }
+  int windowCreated = _renWin->GetWindowCreated();
+  NSWindow *win = reinterpret_cast<NSWindow *>(_renWin->GetRootWindow());
+  if (windowCreated && win)
+    {
+    // Receive notifications of this, and only this, window's closing.
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    [nc addObserver:self
+           selector:@selector(windowWillClose:)
+               name:NSWindowWillCloseNotification
+             object:win];
+    }
+
+  NSView *view = reinterpret_cast<NSView *>(_renWin->GetWindowId());
+  int viewCreated = _renWin->GetViewCreated();
+  if (viewCreated && view)
+    {
+    // Receive notifications of this, and only this, view's frame changing.
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    [nc addObserver:self
+           selector:@selector(viewFrameDidChange:)
+               name:NSViewFrameDidChangeNotification
+             object:view];
     }
 }
 
 //----------------------------------------------------------------------------
-- (void)stop
+- (void)stopObservations
 {
-  if (_renWin != NULL)
-    {
-    NSWindow *win = reinterpret_cast<NSWindow *>(_renWin->GetRootWindow());
-    if (win != nil)
-      {
-      NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-      [nc removeObserver:self
-                    name:NSWindowWillCloseNotification
-                  object:win];
-      }
+  assert(_renWin);
 
-    NSView *view = reinterpret_cast<NSView *>(_renWin->GetWindowId());
-    if (view != nil)
-      {
-      NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-      [nc removeObserver:self
-                    name:NSViewFrameDidChangeNotification
-                  object:view];
-      }
+  int windowCreated = _renWin->GetWindowCreated();
+  NSWindow *win = reinterpret_cast<NSWindow *>(_renWin->GetRootWindow());
+  if (windowCreated && win)
+    {
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    [nc removeObserver:self
+                  name:NSWindowWillCloseNotification
+                object:win];
+    }
+
+  NSView *view = reinterpret_cast<NSView *>(_renWin->GetWindowId());
+  int viewCreated = _renWin->GetViewCreated();
+  if (viewCreated && view)
+    {
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    [nc removeObserver:self
+                  name:NSViewFrameDidChangeNotification
+                object:view];
     }
 }
 
 //----------------------------------------------------------------------------
 - (void)windowWillClose:(NSNotification *)aNotification
 {
+  // We should only get here if it was us that created the NSWindow.
+  assert(_renWin);
+  assert(_renWin->GetWindowCreated());
+
+  // We should only have observed our own NSWindow.
+  assert([aNotification object] == _renWin->GetRootWindow());
   (void)aNotification;
 
-  //
-  [self stop];
+  // Stop observing because the window is closing.
+  [self stopObservations];
 
-  if (_renWin)
+  // The NSWindow is closing, so prevent anyone from accidentally using it.
+  _renWin->SetRootWindow(NULL);
+
+  // Tell interactor to stop the NSApplication's run loop
+  vtkRenderWindowInteractor *interactor = _renWin->GetInteractor();
+  if (interactor)
     {
-    int windowCreated = _renWin->GetWindowCreated();
-    if (windowCreated)
-      {
-      // The NSWindow is closing, so prevent anyone from accidentally using it.
-      _renWin->SetRootWindow(NULL);
-      }
+    interactor->TerminateApp();
     }
 }
 
 //----------------------------------------------------------------------------
 - (void)viewFrameDidChange:(NSNotification *)aNotification
 {
+  // We should only get here if it was us that created the NSView.
+  assert(_renWin);
+  assert(_renWin->GetViewCreated());
+
+  // We should only have observed our own NSView.
+  assert([aNotification object] == _renWin->GetWindowId());
   (void)aNotification;
 
-  // Retrieve the NSView and the Interactor.
-  NSView *view = nil;
-  vtkRenderWindowInteractor *interactor = NULL;
-  if (_renWin != NULL)
-    {
-    view = reinterpret_cast<NSView *>(_renWin->GetWindowId());
-    interactor = _renWin->GetInteractor();
-    }
-
-  if (view == nil || interactor == NULL || !interactor->GetEnabled())
+  // Retrieve the Interactor.
+  vtkRenderWindowInteractor *interactor = _renWin->GetInteractor();
+  if (!interactor || !interactor->GetEnabled())
     {
     return;
     }
 
-  // Get the frame size, send ConfigureEvent from the Interactor.
+  // Get the NSView's new frame size.
+  NSView *view = reinterpret_cast<NSView *>(_renWin->GetWindowId());
+  assert(view);
   NSRect frameRect = [view frame];
   int width = (int)round(NSWidth(frameRect));
   int height = (int)round(NSHeight(frameRect));
 
+  // Get the interactor's current cache of the size.
   int size[2];
   interactor->GetSize(size);
 
   if (width != size[0] || height != size[1])
     {
+    // Send ConfigureEvent from the Interactor.
     interactor->UpdateSize(width, height);
     interactor->InvokeEvent(vtkCommand::ConfigureEvent, NULL);
     }
@@ -259,8 +269,6 @@ void vtkCocoaRenderWindow::Finalize()
 //----------------------------------------------------------------------------
 void vtkCocoaRenderWindow::DestroyWindow()
 {
-  GLuint txId;
-
   // finish OpenGL rendering
   if (this->OwnContext && this->GetContextId())
     {
@@ -281,20 +289,22 @@ void vtkCocoaRenderWindow::DestroyWindow()
   this->SetContextId(NULL);
   this->SetPixelFormat(NULL);
 
+  vtkCocoaServer *server = (vtkCocoaServer *)this->GetCocoaServer();
+  [server stopObservations];
+  this->SetCocoaServer(NULL);
+
+  // If we created it, close the NSWindow.
   if (this->WindowCreated)
     {
-    vtkCocoaServer *server = (vtkCocoaServer *)this->GetCocoaServer();
-    [server stop];
-    this->SetCocoaServer(NULL);
-
-    NSWindow* win = (NSWindow*)this->GetRootWindow();
-    [win close];
-    this->WindowCreated = 0;
+    NSWindow *window = (NSWindow*)this->GetRootWindow();
+    [window close];
     }
 
   this->SetWindowId(NULL);
   this->SetParentId(NULL);
   this->SetRootWindow(NULL);
+  this->WindowCreated = 0;
+  this->ViewCreated = 0;
 }
 
 //----------------------------------------------------------------------------
@@ -765,12 +775,6 @@ void vtkCocoaRenderWindow::CreateAWindow()
     this->SetRootWindow(theWindow);
     this->WindowCreated = 1;
 
-    // Start a vtkCocoaServer.
-    vtkCocoaServer *server = [[vtkCocoaServer alloc] initWithRenderWindow:this];
-    this->SetCocoaServer(reinterpret_cast<void *>(server));
-    [server start];
-    [server release];
-
     // makeKeyAndOrderFront: will show the window
     // we don't want this if offscreen was requested
     if(!this->OffScreenRendering)
@@ -808,7 +812,9 @@ void vtkCocoaRenderWindow::CreateAWindow()
       [parent addSubview:glView];
       this->SetWindowId(glView);
       this->ViewCreated = 1;
+#if !VTK_OBJC_IS_ARC
       [glView release];
+#endif
       }
     else
       {
@@ -822,7 +828,9 @@ void vtkCocoaRenderWindow::CreateAWindow()
       this->SetWindowId(glView);
       this->ViewCreated = 1;
       [glView setVTKRenderWindow:this];
+#if !VTK_OBJC_IS_ARC
       [glView release];
+#endif
       }
     }
 
@@ -858,6 +866,14 @@ void vtkCocoaRenderWindow::CreateAWindow()
     }
   this->OpenGLInit();
   this->Mapped = 1;
+
+  // Now that the NSView and NSWindow exist, the vtkCocoaServer can start its observations.
+  vtkCocoaServer *server = [[vtkCocoaServer alloc] initWithRenderWindow:this];
+  this->SetCocoaServer(reinterpret_cast<void *>(server));
+  [server startObservations];
+#if !VTK_OBJC_IS_ARC
+  [server release];
+#endif
 }
 
 //----------------------------------------------------------------------------
@@ -870,7 +886,10 @@ void vtkCocoaRenderWindow::CreateGLContext()
     int i = 0;
     NSOpenGLPixelFormatAttribute attribs[20];
 
-    attribs[i++] = NSOpenGLPFAAccelerated;
+    attribs[i++] = NSOpenGLPFAOpenGLProfile;
+    attribs[i++] = NSOpenGLProfileVersion3_2Core;
+  //  OSX always preferrs an accelerated context
+  //    attribs[i++] = NSOpenGLPFAAccelerated;
     attribs[i++] = NSOpenGLPFADepthSize;
     attribs[i++] = (NSOpenGLPixelFormatAttribute)32;
 
@@ -912,6 +931,10 @@ void vtkCocoaRenderWindow::CreateGLContext()
         this->MultiSamples /= 2;
         }
       }
+    else
+      {
+      this->SetContextSupportsOpenGL32(true);
+      }
     }
 
   NSOpenGLContext *context = [[NSOpenGLContext alloc]
@@ -928,8 +951,10 @@ void vtkCocoaRenderWindow::CreateGLContext()
   [pixelFormat self]; // prevent premature collection under GC.
   [context self]; // prevent premature collection under GC.
 
+#if !VTK_OBJC_IS_ARC
   [pixelFormat release];
   [context release];
+#endif
 }
 
 //----------------------------------------------------------------------------
@@ -1169,8 +1194,8 @@ void vtkCocoaRenderWindow::PrintSelf(ostream& os, vtkIndent indent)
   os << indent << "ParentId: " << this->GetParentId() << endl;
   os << indent << "ContextId: " << this->GetContextId() << endl;
   os << indent << "PixelFormat: " << this->GetPixelFormat() << endl;
-  os << indent << "WindowCreated: " << (this->WindowCreated ? "Yes" : "No") << endl;
-  os << indent << "ViewCreated: " << (this->ViewCreated ? "Yes" : "No") << endl;
+  os << indent << "WindowCreated: " << (this->GetWindowCreated() ? "Yes" : "No") << endl;
+  os << indent << "ViewCreated: " << (this->GetViewCreated() ? "Yes" : "No") << endl;
 }
 
 //----------------------------------------------------------------------------
@@ -1442,6 +1467,12 @@ void vtkCocoaRenderWindow::ShowCursor()
   this->CursorHidden = 0;
 
   [NSCursor unhide];
+}
+
+// ---------------------------------------------------------------------------
+int vtkCocoaRenderWindow::GetViewCreated()
+{
+  return this->ViewCreated;
 }
 
 // ---------------------------------------------------------------------------

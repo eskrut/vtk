@@ -21,8 +21,8 @@
 // .SECTION See Also
 // vtkPolyDataMapper2D
 
-#ifndef __vtkOpenGLPolyDataMapper2D_h
-#define __vtkOpenGLPolyDataMapper2D_h
+#ifndef vtkOpenGLPolyDataMapper2D_h
+#define vtkOpenGLPolyDataMapper2D_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkPolyDataMapper2D.h"
@@ -30,8 +30,12 @@
 
 class vtkRenderer;
 class vtkPoints;
+class vtkTextureObject;
 
-namespace vtkgl {class CellBO; }
+namespace vtkgl {
+  class CellBO;
+  class BufferObject;
+}
 
 class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLPolyDataMapper2D : public vtkPolyDataMapper2D
 {
@@ -96,8 +100,10 @@ protected:
   vtkgl::CellBO Tris;
   vtkgl::CellBO TriStrips;
 
-  int LastDepthPeeling;
-  vtkTimeStamp DepthPeelingChanged;
+  vtkTextureObject *CellScalarTexture;
+  vtkgl::BufferObject *CellScalarBuffer;
+  bool HaveCellScalars;
+  int PrimitiveIDOffset;
 
   vtkTimeStamp VBOUpdateTime; // When was the VBO updated?
   vtkPoints *TransformedPoints;

@@ -39,8 +39,8 @@
 // .SECTION See Also
 // vtkVRMLImporter vtkPLY vtkOrderedTriangulator
 
-#ifndef __vtkHeap_h
-#define __vtkHeap_h
+#ifndef vtkHeap_h
+#define vtkHeap_h
 
 #include "vtkCommonMiscModule.h" // For export macro
 #include "vtkObject.h"
@@ -92,7 +92,7 @@ protected:
   size_t BlockSize;
   int    NumberOfAllocations;
   int    NumberOfBlocks;
-  int    Alignment;
+  size_t Alignment;
 
   // Manage the blocks
   vtkHeapBlock* First;

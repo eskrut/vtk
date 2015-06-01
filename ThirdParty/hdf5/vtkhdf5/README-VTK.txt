@@ -11,10 +11,11 @@ branch, but it is merged into our history.
 Update hdf5 from upstream as follows.  Create a local branch to
 explicitly reference the upstream snapshot branch head:
 
- git branch hdf5-upstream 8e37142d
+ git branch hdf5-upstream 8d8063fa
 
 Use a temporary directory to checkout the branch:
 
+ cd ~/src/VTK
  mkdir hdf5-tmp
  cd hdf5-tmp
  git init
@@ -24,7 +25,7 @@ Use a temporary directory to checkout the branch:
 Now place the (reduced) hdf5 content in this directory.  See
 instructions shown by
 
- git log 8e37142d
+ git log 8d8063fa
 
 for help extracting the content from the upstream svn repo.  Then run
 the following commands to commit the new version.  Substitute the
@@ -52,7 +53,7 @@ Create a topic in the main repository on which to perform the update:
 
 Merge the hdf5-upstream branch as a subtree:
 
- git merge -s subtree hdf5-upstream
+git merge -X subtree=ThirdParty/hdf5/vtkhdf5 hdf5-upstream
 
 If there are conflicts, resolve them and commit.  Build and test the
 tree.  Commit any additional changes needed to succeed.

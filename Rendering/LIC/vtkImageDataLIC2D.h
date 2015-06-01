@@ -30,8 +30,8 @@
 // .SECTION see also
 //  vtkSurfaceLICPainter vtkLineIntegralConvolution2D
 
-#ifndef __vtkImageDataLIC2D_h
-#define __vtkImageDataLIC2D_h
+#ifndef vtkImageDataLIC2D_h
+#define vtkImageDataLIC2D_h
 
 #include "vtkRenderingLICModule.h" // For export macro
 #include "vtkImageAlgorithm.h"
@@ -39,6 +39,7 @@
 
 class vtkRenderWindow;
 class vtkImageNoiseSource;
+class vtkImageCast;
 class vtkShaderProgram2;
 
 class VTKRENDERINGLIC_EXPORT vtkImageDataLIC2D : public vtkImageAlgorithm
@@ -125,6 +126,7 @@ protected:
   vtkShaderProgram2 *MagShader;
 
   vtkImageNoiseSource* NoiseSource;
+  vtkImageCast *ImageCast;
 
   int Steps;
   double StepSize;

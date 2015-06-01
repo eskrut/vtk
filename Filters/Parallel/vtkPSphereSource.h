@@ -14,8 +14,8 @@
 =========================================================================*/
 // .NAME vtkPSphereSource - sphere source that supports pieces
 
-#ifndef __vtkPSphereSource_h
-#define __vtkPSphereSource_h
+#ifndef vtkPSphereSource_h
+#define vtkPSphereSource_h
 
 #include "vtkFiltersParallelModule.h" // For export macro
 #include "vtkSphereSource.h"
@@ -32,7 +32,7 @@ public:
   virtual void PrintSelf(ostream& os, vtkIndent indent);
 
   // Description:
-  // Get the estimated memory size in 1024 bytes
+  // Get the estimated memory size in kibibytes (1024 bytes).
   unsigned long GetEstimatedMemorySize();
 
 protected:

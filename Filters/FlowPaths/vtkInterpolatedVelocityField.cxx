@@ -36,11 +36,7 @@ void vtkInterpolatedVelocityField::AddDataSet( vtkDataSet * dataset )
   if ( size > this->WeightsSize )
     {
     this->WeightsSize = size;
-    if ( this->Weights )
-      {
-      delete[] this->Weights;
-      this->Weights = NULL;
-      }
+    delete[] this->Weights;
     this->Weights = new double[size];
     }
 }
@@ -103,6 +99,23 @@ int vtkInterpolatedVelocityField::FunctionValues( double * x, double * f )
     }
 
   return retVal;
+}
+
+//----------------------------------------------------------------------------
+int vtkInterpolatedVelocityField::SnapPointOnCell(double* pOrigin, double* pSnap)
+{
+  if (this->LastDataSet == NULL)
+    {
+    return 0;
+    }
+   if (!this->FindAndUpdateCell(this->LastDataSet, pOrigin))
+    {
+    return 0;
+    }
+  double dist2;
+  this->GenCell->EvaluatePosition
+    (pOrigin, pSnap, this->LastSubId, this->LastPCoords, dist2, this->Weights);
+  return 1;
 }
 
 //----------------------------------------------------------------------------

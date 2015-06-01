@@ -60,7 +60,7 @@
 
 #include "vtk_exodusII.h"
 #include <stdio.h>
-#include <stdlib.h> /* for free() */
+#include <cstdlib> /* for free() */
 #include <string.h> /* for memset() */
 #include <ctype.h> /* for toupper(), isgraph() */
 #include <math.h> /* for cos() */
@@ -388,7 +388,6 @@ vtkExodusIIReaderPrivate::vtkExodusIIReaderPrivate()
   this->Cache = vtkExodusIICache::New();
   this->CacheSize = 0;
 
-  this->TimeStep = 0;
   this->HasModeShapes = 0;
   this->ModeShapeTime = -1.;
   this->AnimateModeShapes = 1;
@@ -946,7 +945,7 @@ int vtkExodusIIReaderPrivate::AssembleOutputProceduralArrays(
 
 //-----------------------------------------------------------------------------
 int vtkExodusIIReaderPrivate::AssembleOutputGlobalArrays(
-  vtkIdType vtkNotUsed(timeStep), int otyp, int obj, BlockSetInfoType* bsinfop,
+  vtkIdType timeStep, int otyp, int obj, BlockSetInfoType* bsinfop,
   vtkUnstructuredGrid* output )
 {
   (void)obj;
@@ -1008,6 +1007,16 @@ int vtkExodusIIReaderPrivate::AssembleOutputGlobalArrays(
     sarr->SetValue(0, this->ModelParameters.title);
     ofieldData->AddArray(sarr);
     sarr->Delete();
+    }
+
+  // Add mode_shape/time_step
+    {
+    vtkNew<vtkIntArray> dataIndexArray;
+    dataIndexArray->SetName("mode_shape");
+    dataIndexArray->SetNumberOfComponents(1);
+    dataIndexArray->SetNumberOfTuples(1);
+    dataIndexArray->SetValue(0, timeStep);
+    ofieldData->AddArray(dataIndexArray.GetPointer());
     }
 
   vtkExodusIICacheKey infokey( -1, vtkExodusIIReader::INFO_RECORDS, 0, 0 );
@@ -3051,6 +3060,8 @@ void vtkExodusIIReaderPrivate::DetermineVtkCellType( BlockInfoType& binfo )
     { binfo.CellType=VTK_QUADRATIC_EDGE;           binfo.PointsPerCell = 3; }
   else if ((elemType.substr(0,3) == "EDG") &&      (binfo.BdsPerEntry[0] == 3))
     { binfo.CellType=VTK_QUADRATIC_EDGE;           binfo.PointsPerCell = 3; }
+  else if ((elemType.substr(0,3) == "PYR") &&      (binfo.BdsPerEntry[0] == 13))
+    { binfo.CellType=VTK_QUADRATIC_PYRAMID;        binfo.PointsPerCell = 13; }
 
   // Check for regular elements
   else if (elemType.substr(0,3) == "CIR") { binfo.CellType = VTK_VERTEX;     binfo.PointsPerCell = 1; }
@@ -3078,7 +3089,7 @@ void vtkExodusIIReaderPrivate::DetermineVtkCellType( BlockInfoType& binfo )
     binfo.CellType=VTK_POLY_VERTEX;
     binfo.PointsPerCell = binfo.BdsPerEntry[0];
     }
-  else if ((elemType.substr(0,8) == "NULL") && (binfo.Size == 0))
+  else if ((elemType.substr(0,4) == "NULL") && (binfo.Size == 0))
     {
     (void)binfo; // silently ignore empty element blocks
     }
@@ -3573,7 +3584,6 @@ void vtkExodusIIReaderPrivate::PrintData( ostream& os, vtkIndent indent )
     os << " " << this->Times[i];
     }
   os << "\n";
-  os << indent << "TimeStep: " << this->TimeStep << "\n";
   os << indent << "HasModeShapes: " << this->HasModeShapes << "\n";
   os << indent << "ModeShapeTime: " << this->ModeShapeTime << "\n";
   os << indent << "AnimateModeShapes: " << this->AnimateModeShapes << "\n";
@@ -4496,7 +4506,6 @@ void vtkExodusIIReaderPrivate::Reset()
   this->ArrayInfo.clear();
   this->ExodusVersion = -1.;
   this->Times.clear();
-  this->TimeStep = 0;
   memset( (void*)&this->ModelParameters, 0, sizeof(this->ModelParameters) );
 
   // Don't clear file id since it's not part of meta-data that's read from the
@@ -6065,10 +6074,16 @@ void vtkExodusIIReader::SetAllArrayStatus( int otyp, int status )
   case FACE_SET_CONN:
   case SIDE_SET_CONN:
   case ELEM_SET_CONN:
-    numObj = this->GetNumberOfObjects( otyp );
-    for ( i = 0; i < numObj; ++i )
-      {
-      this->SetObjectStatus( otyp, i, status );
+      { // Convert the "connectivity" type into an "object" type:
+      int ctypidx = this->Metadata->GetConnTypeIndexFromConnType(otyp);
+      int otypidx = conn_obj_idx_cvt[ctypidx];
+      otyp = obj_types[otypidx];
+      // Now set the status
+      numObj = this->GetNumberOfObjects( otyp );
+      for ( i = 0; i < numObj; ++i )
+        {
+        this->SetObjectStatus( otyp, i, status );
+        }
       }
     break;
   case NODAL:
@@ -6094,26 +6109,29 @@ void vtkExodusIIReader::SetAllArrayStatus( int otyp, int status )
       {
       this->SetAssemblyArrayStatus( i, status );
       }
+    VTK_FALLTHROUGH;
   case PART:
     numObj = this->GetNumberOfPartArrays();
     for ( i = 0; i < numObj; ++i )
       {
       this->SetPartArrayStatus( i, status );
       }
+    VTK_FALLTHROUGH;
   case MATERIAL:
     numObj = this->GetNumberOfMaterialArrays();
     for ( i = 0; i < numObj; ++i )
       {
       this->SetMaterialArrayStatus( i, status );
       }
+    VTK_FALLTHROUGH;
   case HIERARCHY:
     numObj = this->GetNumberOfHierarchyArrays();
     for ( i = 0; i < numObj; ++i )
       {
       this->SetHierarchyArrayStatus( i, status );
       }
+    break;
   default:
-    ;
     break;
     }
 }

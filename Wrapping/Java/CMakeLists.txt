@@ -5,6 +5,9 @@ include_directories(${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
 
 # Add the option to package VTK for custom Java packaging
 option(VTK_JAVA_INSTALL "Use the Java rules to build the native libraries." OFF)
+option(VTK_JAVA_CLEANUP_INSTALL "Should java packaging cleanup install directory." OFF)
+mark_as_advanced(VTK_JAVA_CLEANUP_INSTALL)
+
 if(VTK_JAVA_INSTALL)
 
   # Make sure we embed the runtime libraries when packaging the Java binaries
@@ -318,14 +321,37 @@ endif()
 # Set the javac source version
 set(VTK_JAVA_SOURCE_VERSION "1.5" CACHE STRING "javac source version")
 mark_as_advanced(VTK_JAVA_SOURCE_VERSION)
+set(VTK_JAVA_TARGET_VERSION "1.5" CACHE STRING "javac target version")
+mark_as_advanced(VTK_JAVA_TARGET_VERSION)
+
+# On machines with long paths to VTK (or windows where the command line length
+# is short), we cannot just list all the java files on the command line.  So
+# we put them in a response file and give that to javac
+# FIXME - Ideally we should make this run every build, but this is not well
+#          supported right now...
+add_custom_command(
+  OUTPUT ${VTK_BINARY_DIR}/java/javac_stamp.rsp
+  DEPENDS ${VTK_JAVA_SOURCE_FILES}
+  COMMAND ${CMAKE_COMMAND}
+          -DVTK_JAVA_SWT_COMPONENT=${VTK_JAVA_SWT_COMPONENT}
+          -DVTK_JAVA_JOGL_COMPONENT=${VTK_JAVA_JOGL_COMPONENT}
+          -DVTK_BINARY_DIR=${VTK_BINARY_DIR}
+          -DRSP_FILENAME=${VTK_BINARY_DIR}/java/javac_stamp.rsp
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/MakeJavacResponseFile.cmake
+  COMMENT "Creating javac response file"
+  )
 
 # Compile the Java classes
 add_custom_command(
   OUTPUT ${VTK_BINARY_DIR}/java/javac_stamp.txt
-  DEPENDS ${VTK_JAVA_SOURCE_FILES}
+  DEPENDS ${VTK_BINARY_DIR}/java/javac_stamp.rsp ${VTK_JAVA_SOURCE_FILES}
   COMMAND ${JAVA_COMPILE} ${JAVAC_OPTIONS}
-  -source ${VTK_JAVA_SOURCE_VERSION} -classpath ${JAVA_COMPILATION_CLASSPATH} -sourcepath ${VTK_SOURCE_DIR}/Wrapping/Java/ -d ${VTK_BINARY_DIR}/java
-    ${VTK_BINARY_DIR}/java/vtk/*.java ${VTK_BINARY_DIR}/java/vtk/rendering/*.java ${VTK_BINARY_DIR}/java/vtk/rendering/awt/*.java ${VTK_BINARY_DIR}/java/vtk/sample/*.java ${SWT_FILES} ${JOGL_FILES}
+          -source ${VTK_JAVA_SOURCE_VERSION}
+          -target ${VTK_JAVA_TARGET_VERSION}
+          -classpath ${JAVA_COMPILATION_CLASSPATH}
+          -sourcepath ${VTK_SOURCE_DIR}/Wrapping/Java/
+          -d ${VTK_BINARY_DIR}/java
+          @${VTK_BINARY_DIR}/java/javac_stamp.rsp
   COMMAND ${CMAKE_COMMAND} -E touch ${VTK_BINARY_DIR}/java/javac_stamp.txt
   COMMENT "Compiling Java Classes"
   )
@@ -355,10 +381,13 @@ if(BUILD_TESTING)
   # Compile Java Tests
   add_custom_command(
     OUTPUT ${VTK_BINARY_DIR}/java/javac_tests_stamp.txt
-    COMMAND ${JAVA_COMPILE} ${JAVAC_OPTIONS} -classpath ${VTK_JAR_PATH}/vtk.jar${SEPARATOR}${VTK_BINARY_DIR}/Wrapping/Java
-    -source ${VTK_JAVA_SOURCE_VERSION} -sourcepath ${VTK_SOURCE_DIR}/Wrapping/Java
-    -d ${VTK_BINARY_DIR}/Wrapping/Java
-    ${VTK_JAVA_TESTS}
+    COMMAND ${JAVA_COMPILE} ${JAVAC_OPTIONS}
+            -classpath ${VTK_JAR_PATH}/vtk.jar${SEPARATOR}${VTK_BINARY_DIR}/Wrapping/Java
+            -source ${VTK_JAVA_SOURCE_VERSION}
+            -target ${VTK_JAVA_TARGET_VERSION}
+            -sourcepath ${VTK_SOURCE_DIR}/Wrapping/Java
+            -d ${VTK_BINARY_DIR}/Wrapping/Java
+            ${VTK_JAVA_TESTS}
     COMMAND ${CMAKE_COMMAND} -E touch ${VTK_BINARY_DIR}/java/javac_tests_stamp.txt
     DEPENDS ${VTK_JAR_PATH}/vtk.jar ${VTK_JAVA_TESTS}
     COMMENT "Compiling Java Tests"
@@ -368,12 +397,12 @@ if(BUILD_TESTING)
   if(vtkTestingRendering_ENABLED)
 
     # Require Rendering
-    if(vtkRenderingOpenGL_ENABLED)
+    if(vtkRendering${VTK_RENDERING_BACKEND}_ENABLED)
       # If JAVA_DATAMODEL_FLAG is set, pass it as first argument. Otherwise, it's empty.
       # For example, use "-d64" to force 64-bit java jvm.
       #
       ExternalData_add_test(VTKData
-         JavaRegression ${JAVA_RUNTIME} ${VTK_TEST_JAVA_DATAMODEL_FLAG}
+         JavaRendering ${JAVA_RUNTIME} ${VTK_TEST_JAVA_DATAMODEL_FLAG}
          -classpath "${VTK_JAR_PATH}/vtk.jar${SEPARATOR}${VTK_BINARY_DIR}/Wrapping/Java"
          vtk.test.Regression -D ${VTK_TEST_DATA_DIR}
          -V DATA{Baseline/Cone.png,:}
@@ -433,4 +462,4 @@ if(VTK_JAVA_INSTALL)
   configure_file(Maven/README.txt.in
                ${VTK_BINARY_DIR}/MAVEN-README.txt @ONLY)
   install(SCRIPT ${VTK_BINARY_DIR}/JavaInstall.cmake)
-endif(VTK_JAVA_INSTALL)
+endif()

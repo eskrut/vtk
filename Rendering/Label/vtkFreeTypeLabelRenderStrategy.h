@@ -18,14 +18,14 @@
 // Uses the FreeType to render labels and compute label sizes.
 // This strategy may be used with vtkLabelPlacementMapper.
 
-#ifndef __vtkFreeTypeLabelRenderStrategy_h
-#define __vtkFreeTypeLabelRenderStrategy_h
+#ifndef vtkFreeTypeLabelRenderStrategy_h
+#define vtkFreeTypeLabelRenderStrategy_h
 
 #include "vtkRenderingLabelModule.h" // For export macro
 #include "vtkLabelRenderStrategy.h"
 
 class vtkActor2D;
-class vtkFreeTypeUtilities;
+class vtkTextRenderer;
 class vtkTextMapper;
 
 class VTKRENDERINGLABEL_EXPORT vtkFreeTypeLabelRenderStrategy : public vtkLabelRenderStrategy
@@ -72,7 +72,7 @@ protected:
   vtkFreeTypeLabelRenderStrategy();
   ~vtkFreeTypeLabelRenderStrategy();
 
-  vtkFreeTypeUtilities* FreeTypeUtilities;
+  vtkTextRenderer *TextRenderer;
   vtkTextMapper* Mapper;
   vtkActor2D* Actor;
 

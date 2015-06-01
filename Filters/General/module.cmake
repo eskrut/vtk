@@ -5,12 +5,12 @@ vtk_module(vtkFiltersGeneral
     vtkCommonComputationalGeometry
     vtkFiltersCore
   TEST_DEPENDS
+    vtkFiltersFlowPaths
     vtkIOLegacy
     vtkIOXML
     vtkImagingMath
     vtkInteractionStyle
     vtkRendering${VTK_RENDERING_BACKEND}
-    vtkRenderingFreeTypeOpenGL
     vtkRenderingAnnotation
     vtkRenderingLabel
     vtkTestingRendering

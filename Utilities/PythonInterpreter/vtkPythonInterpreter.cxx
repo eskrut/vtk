@@ -69,6 +69,10 @@ namespace
 
 bool vtkPythonInterpreter::InitializedOnce = false;
 bool vtkPythonInterpreter::CaptureStdin = false;
+bool vtkPythonInterpreter::ConsoleBuffering = false;
+std::string vtkPythonInterpreter::StdErrBuffer;
+std::string vtkPythonInterpreter::StdOutBuffer;
+
 
 vtkStandardNewMacro(vtkPythonInterpreter);
 //----------------------------------------------------------------------------
@@ -225,9 +229,10 @@ int vtkPythonInterpreter::PyMain(int argc, char** argv)
 }
 
 //----------------------------------------------------------------------------
-void vtkPythonInterpreter::RunSimpleString(const char* script)
+int vtkPythonInterpreter::RunSimpleString(const char* script)
 {
   vtkPythonInterpreter::Initialize(1);
+  vtkPythonInterpreter::ConsoleBuffering = true;
 
   // The embedded python interpreter cannot handle DOS line-endings, see
   // http://sourceforge.net/tracker/?group_id=5470&atid=105470&func=detail&aid=1167922
@@ -235,7 +240,22 @@ void vtkPythonInterpreter::RunSimpleString(const char* script)
   buffer.erase(std::remove(buffer.begin(), buffer.end(), '\r'), buffer.end());
 
   // The cast is necessary because PyRun_SimpleString() hasn't always been const-correct
-  PyRun_SimpleString(const_cast<char*>(buffer.c_str()));
+  int pyReturn = PyRun_SimpleString(const_cast<char*>(buffer.c_str()));
+  vtkPythonInterpreter::ConsoleBuffering = false;
+  if (! vtkPythonInterpreter::StdErrBuffer.empty())
+    {
+    NotifyInterpreters(vtkCommand::ErrorEvent, const_cast<char*>(
+                         vtkPythonInterpreter::StdErrBuffer.c_str()));
+    vtkPythonInterpreter::StdErrBuffer.clear();
+    }
+  if (! vtkPythonInterpreter::StdOutBuffer.empty())
+    {
+    NotifyInterpreters(vtkCommand::SetOutputEvent, const_cast<char*>(
+                         vtkPythonInterpreter::StdOutBuffer.c_str()));
+    vtkPythonInterpreter::StdOutBuffer.clear();
+    }
+
+  return pyReturn;
 }
 
 //----------------------------------------------------------------------------
@@ -254,24 +274,40 @@ bool vtkPythonInterpreter::GetCaptureStdin()
 void vtkPythonInterpreter::WriteStdOut(const char* txt)
 {
   cout << txt;
-  NotifyInterpreters(vtkCommand::SetOutputEvent, const_cast<char*>(txt));
+  if (vtkPythonInterpreter::ConsoleBuffering)
+    {
+    vtkPythonInterpreter::StdOutBuffer += std::string(txt);
+    }
+  else
+    {
+    NotifyInterpreters(vtkCommand::SetOutputEvent, const_cast<char*>(txt));
+    }
 }
 
 //----------------------------------------------------------------------------
 void vtkPythonInterpreter::FlushStdOut()
 {
+    cout.flush();
 }
 
 //----------------------------------------------------------------------------
 void vtkPythonInterpreter::WriteStdErr(const char* txt)
 {
   cerr << txt;
-  NotifyInterpreters(vtkCommand::ErrorEvent, const_cast<char*>(txt));
+  if (vtkPythonInterpreter::ConsoleBuffering)
+    {
+    vtkPythonInterpreter::StdErrBuffer += std::string(txt);
+    }
+  else
+    {
+    NotifyInterpreters(vtkCommand::ErrorEvent, const_cast<char*>(txt));
+    }
 }
 
 //----------------------------------------------------------------------------
 void vtkPythonInterpreter::FlushStdErr()
 {
+    cerr.flush();
 }
 
 //----------------------------------------------------------------------------

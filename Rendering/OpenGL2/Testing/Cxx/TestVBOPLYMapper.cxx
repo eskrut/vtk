@@ -15,7 +15,6 @@
 #include "vtkCamera.h"
 #include "vtkRenderer.h"
 #include "vtkRenderWindow.h"
-#include "vtkRenderWindowInteractor.h"
 #include "vtkActor.h"
 #include "vtkCellArray.h"
 #include "vtkPointData.h"
@@ -30,6 +29,8 @@
 #include "vtkRegressionTestImage.h"
 #include "vtkTestUtilities.h"
 
+#include "vtkRenderWindowInteractor.h"
+
 //----------------------------------------------------------------------------
 int TestVBOPLYMapper(int argc, char *argv[])
 {
@@ -41,13 +42,13 @@ int TestVBOPLYMapper(int argc, char *argv[])
   renderWindow->SetSize(900, 900);
   renderWindow->AddRenderer(renderer.Get());
   renderer->AddActor(actor.Get());
+  vtkNew<vtkRenderWindowInteractor>  iren;
+  iren->SetRenderWindow(renderWindow.Get());
   vtkNew<vtkLightKit> lightKit;
   lightKit->AddLightsToRenderer(renderer.Get());
 
   const char* fileName = vtkTestUtilities::ExpandDataFileName(argc, argv,
                                                                "Data/dragon.ply");
-  //const char* fileName = "C:\\Users\\ken.martin\\Documents\\vtk\\VTKData\\Data\\lucy.ply";
-
   vtkNew<vtkPLYReader> reader;
   reader->SetFileName(fileName);
   reader->Update();
@@ -69,8 +70,6 @@ int TestVBOPLYMapper(int argc, char *argv[])
   actor->GetProperty()->SetOpacity(1.0);
   //actor->GetProperty()->SetRepresentationToWireframe();
 
-  vtkNew<vtkRenderWindowInteractor> interactor;
-  interactor->SetRenderWindow(renderWindow.Get());
   renderWindow->SetMultiSamples(0);
 
   vtkNew<vtkTimerLog> timer;
@@ -81,11 +80,11 @@ int TestVBOPLYMapper(int argc, char *argv[])
   cerr << "first render time: " << firstRender << endl;
 
   timer->StartTimer();
-  int numRenders = 85;
+  int numRenders = 8;
   for (int i = 0; i < numRenders; ++i)
     {
-    renderer->GetActiveCamera()->Azimuth(1);
-    renderer->GetActiveCamera()->Elevation(1);
+    renderer->GetActiveCamera()->Azimuth(10);
+    renderer->GetActiveCamera()->Elevation(10);
     renderWindow->Render();
     }
   timer->StopTimer();
@@ -102,10 +101,13 @@ int TestVBOPLYMapper(int argc, char *argv[])
   renderer->ResetCamera();
 
   renderWindow->SetSize(300, 300);
+  renderWindow->Render();
 
-  interactor->Start();
-
-  //delete [] fileName;
+  int retVal = vtkRegressionTestImage( renderWindow.Get() );
+  if ( retVal == vtkRegressionTester::DO_INTERACTOR)
+    {
+    iren->Start();
+    }
 
   return EXIT_SUCCESS;
 }

@@ -12,14 +12,14 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-#ifndef __vtkDataArrayTemplate_txx
-#define __vtkDataArrayTemplate_txx
+#ifndef vtkDataArrayTemplate_txx
+#define vtkDataArrayTemplate_txx
 
 #include "vtkDataArrayTemplate.h"
 #include "vtkDataArrayPrivate.txx"
 
 #include "vtkArrayIteratorTemplate.h"
-#include "vtkTypedDataArrayIterator.h"
+#include "vtkDataArrayTemplateHelper.h"
 #include "vtkIdList.h"
 #include "vtkInformation.h"
 #include "vtkInformationDoubleVectorKey.h"
@@ -90,14 +90,8 @@ template <class T>
 vtkDataArrayTemplate<T>::~vtkDataArrayTemplate()
 {
   this->DeleteArray();
-  if(this->Tuple)
-    {
-    free(this->Tuple);
-    }
-  if(this->Lookup)
-    {
-    delete this->Lookup;
-    }
+  free(this->Tuple);
+  delete this->Lookup;
 }
 
 //----------------------------------------------------------------------------
@@ -196,15 +190,14 @@ void vtkDataArrayTemplate<T>::PrintSelf(ostream& os, vtkIndent indent)
 template <typename T> vtkDataArrayTemplate<T> *
 vtkDataArrayTemplate<T>::FastDownCast(vtkAbstractArray *src)
 {
-  switch (src->GetArrayType())
+  if ((src->GetArrayType() == vtkAbstractArray::DataArrayTemplate) &&
+      (src->GetDataType() == vtkTypeTraits<ValueType>::VTK_TYPE_ID))
     {
-    case vtkAbstractArray::DataArrayTemplate:
-      if (src->GetDataType() == vtkTypeTraits<ValueType>::VTK_TYPE_ID)
-        {
-        return static_cast<vtkDataArrayTemplate<ValueType>*>(src);
-        }
-    default:
-      return NULL;
+    return static_cast<vtkDataArrayTemplate<ValueType>*>(src);
+    }
+  else
+    {
+    return NULL;
     }
 }
 
@@ -522,6 +515,32 @@ void vtkDataArrayTemplate<T>::InsertTuples(vtkIdList *dstIds, vtkIdList *srcIds,
     }
 
   this->DataChanged();
+}
+
+//------------------------------------------------------------------------------
+template<class T>
+void vtkDataArrayTemplate<T>::InsertTuples(vtkIdType dstStart, vtkIdType n,
+                                           vtkIdType srcStart,
+                                           vtkAbstractArray *source)
+{
+  if (n == 0)
+    {
+    return;
+    }
+
+  if (source->GetDataType() != this->GetDataType())
+    {
+    vtkWarningMacro("Input and output array data types do not match.");
+    return;
+    }
+
+  if (this->NumberOfComponents != source->GetNumberOfComponents())
+    {
+    vtkWarningMacro("Input and output component sizes do not match.");
+    return;
+    }
+
+  vtkDataArrayTemplateHelper::InsertTuples(this, dstStart, n, srcStart, source);
 }
 
 //----------------------------------------------------------------------------
@@ -1236,11 +1255,8 @@ void vtkDataArrayTemplate<T>::DataElementChanged(vtkIdType id)
 template <class T>
 void vtkDataArrayTemplate<T>::ClearLookup()
 {
-  if (this->Lookup)
-    {
-    delete this->Lookup;
-    this->Lookup = NULL;
-    }
+  delete this->Lookup;
+  this->Lookup = NULL;
 }
 
 #endif

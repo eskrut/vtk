@@ -20,8 +20,8 @@
 // Thanks to David Gobbi at the Seaman Family MR Centre and Dept. of Clinical
 // Neurosciences, Foothills Medical Centre, Calgary, for providing this class.
 
-#ifndef __vtkOpenGLImageSliceMapper_h
-#define __vtkOpenGLImageSliceMapper_h
+#ifndef vtkOpenGLImageSliceMapper_h
+#define vtkOpenGLImageSliceMapper_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkImageSliceMapper.h"
@@ -105,8 +105,6 @@ protected:
   // Check various OpenGL capabilities
   void CheckOpenGLCapabilities(vtkOpenGLRenderWindow *renWin);
 
-  long TextureIndex; // OpenGL ID for texture or display list
-  long BackgroundTextureIndex; // OpenGL ID for texture or display list
   long FragmentShaderIndex; // OpenGL ID for fragment shader
   vtkRenderWindow *RenderWindow; // RenderWindow used for previous render
   int TextureSize[2];
@@ -121,7 +119,6 @@ protected:
   vtkTimeStamp LoadTime;
   int LoadCount;
 
-  bool UsePowerOfTwoTextures;
   bool UseClampToEdge;
   bool UseFragmentProgram;
 

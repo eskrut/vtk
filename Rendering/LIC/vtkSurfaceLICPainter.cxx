@@ -452,7 +452,7 @@ float *RandomNoise2D::Generate(
             impulseProb,
             impulseBgNoiseVal,
             seed);
-      break;
+
     case UNIFORM:
       return this->GenerateUniform(
             sideLen,
@@ -463,7 +463,7 @@ float *RandomNoise2D::Generate(
             impulseProb,
             impulseBgNoiseVal,
             seed);
-      break;
+
     case PERLIN:
       return this->GeneratePerlin(
             sideLen,
@@ -474,7 +474,6 @@ float *RandomNoise2D::Generate(
             impulseProb,
             impulseBgNoiseVal,
             seed);
-      break;
     }
   return NULL;
 }
@@ -494,7 +493,6 @@ float *RandomNoise2D::GenerateUniform(
   // with a uniform distribution and fixed number of levels
   nLevels = nLevels < 1 ? 1 : nLevels;
   int maxLevel = nLevels-1;
-  float delta = 1.0f/maxLevel;
   minNoiseVal = minNoiseVal < 0.0f ? 0.0f : minNoiseVal;
   maxNoiseVal = maxNoiseVal > 1.0f ? 1.0f : maxNoiseVal;
   float noiseRange = maxNoiseVal - minNoiseVal;
@@ -521,7 +519,7 @@ float *RandomNoise2D::GenerateUniform(
          {
          int l = static_cast<int>(this->ValueGen.GetRandomNumber()*nLevels);
          l = l > maxLevel ? maxLevel : l; // needed for 1.0
-         rvals[idx] = nLevels == 1 ? maxNoiseVal : minNoiseVal + (l*delta) * noiseRange;
+         rvals[idx] = (nLevels == 1) ? maxNoiseVal : (minNoiseVal + (l*1.0f/maxLevel) * noiseRange);
          }
        }
     }
@@ -623,7 +621,6 @@ float *RandomNoise2D::GenerateGaussian(
 
   nLevels = nLevels < 1 ? 1 : nLevels;
   int maxLevel = nLevels-1;
-  float delta = 1.0f/maxLevel;
   minNoiseVal = minNoiseVal < 0.0f ? 0.0f : minNoiseVal;
   maxNoiseVal = maxNoiseVal > 1.0f ? 1.0f : maxNoiseVal;
   float noiseRange = maxNoiseVal - minNoiseVal;
@@ -635,8 +632,8 @@ float *RandomNoise2D::GenerateGaussian(
     int l = static_cast<int>(val*nLevels);
     l = l > maxLevel ? maxLevel : l;
     rvals[i]
-       = rvals[i] < minVal ? impulseBgNoiseVal
-       : nLevels == 1 ? maxNoiseVal : minNoiseVal + (l*delta) * noiseRange;
+       = (rvals[i] < minVal) ? impulseBgNoiseVal
+       : (nLevels == 1) ? maxNoiseVal : (minNoiseVal + (l*1.0f/maxLevel) * noiseRange);
     }
 
   // map single pixel random values onto a patch of values of
@@ -939,10 +936,7 @@ public:
     this->LightingHelper = NULL;
     this->ColorMaterialHelper = NULL;
 
-    if (this->Communicator)
-      {
-      delete this->Communicator;
-      }
+    delete this->Communicator;
     }
 
   // Description:
@@ -1917,6 +1911,8 @@ void vtkSurfaceLICPainter::SetEnhanceContrast(int val)
           break;
         case ENHANCE_CONTRAST_COLOR:
           this->Internals->LICNeedsUpdate = true;
+          this->Internals->ColorNeedsUpdate = true;
+          break;
         case ENHANCE_CONTRAST_LIC:
           this->Internals->ColorNeedsUpdate = true;
           break;
@@ -2501,12 +2497,7 @@ void vtkSurfaceLICPainter::CreateCommunicator()
           this->Internals->DataSetExt,
           this->Internals->BlockExts);
 
-  if (this->Internals->Communicator)
-    {
-    delete this->Internals->Communicator;
-    this->Internals->Communicator = NULL;
-    }
-
+  delete this->Internals->Communicator;
   this->Internals->Communicator = this->CreateCommunicator(includeRank);
 
   #if vtkSurfaceLICPainterDEBUG >= 1

@@ -21,8 +21,8 @@
 // .SECTION See Also
 // vtkTextMapper vtkTextActor vtkLegendBoxActor vtkCaptionActor2D
 
-#ifndef __vtkTextProperty_h
-#define __vtkTextProperty_h
+#ifndef vtkTextProperty_h
+#define vtkTextProperty_h
 
 #include "vtkRenderingCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -46,8 +46,19 @@ public:
   // Description:
   // Set/Get the text's opacity. 1.0 is totally opaque and 0.0 is completely
   // transparent.
-  vtkSetMacro(Opacity,double);
+  vtkSetClampMacro(Opacity, double, 0., 1.);
   vtkGetMacro(Opacity,double);
+
+  // Description:
+  // The background color.
+  vtkSetVector3Macro(BackgroundColor, double);
+  vtkGetVector3Macro(BackgroundColor, double);
+
+  // Description:
+  // The background opacity. 1.0 is totally opaque and 0.0 is completely
+  // transparent.
+  vtkSetClampMacro(BackgroundOpacity, double, 0., 1.);
+  vtkGetMacro(BackgroundOpacity, double);
 
   // Description:
   // Set/Get the font family. Supports legacy three font family system.
@@ -157,6 +168,8 @@ protected:
 
   double Color[3];
   double Opacity;
+  double BackgroundColor[3];
+  double BackgroundOpacity;
   char* FontFamilyAsString;
   char* FontFile;
   int   FontSize;

@@ -62,30 +62,18 @@ vtkRIBExporter::vtkRIBExporter()
 
 vtkRIBExporter::~vtkRIBExporter()
 {
-  if ( this->FilePrefix )
-    {
-    delete [] this->FilePrefix;
-    }
-  if ( this->TexturePrefix )
-    {
-    delete [] this->TexturePrefix;
-    }
+  delete [] this->FilePrefix;
+  delete [] this->TexturePrefix;
 }
 
 void vtkRIBExporter::WriteData()
 {
-  vtkRenderer *ren;
-  vtkActorCollection *ac;
-  vtkLightCollection *lc;
-  vtkActor *anActor;
-  vtkCollection *textures = vtkCollection::New();
-  vtkLight *aLight;
-  vtkTexture *aTexture;
-
   // make sure the user specified a FilePrefix
   if ( this->FilePrefix == NULL)
     {
     vtkErrorMacro(<< "Please specify file name for the rib file");
+    delete [] this->FilePrefix;
+    delete [] this->TexturePrefix;
     return;
     }
 
@@ -96,6 +84,13 @@ void vtkRIBExporter::WriteData()
     return;
     }
 
+  vtkRenderer *ren;
+  vtkActorCollection *ac;
+  vtkLightCollection *lc;
+  vtkActor *anActor;
+  vtkLight *aLight;
+  vtkTexture *aTexture;
+
   // get the renderer
   vtkCollectionSimpleIterator sit;
   this->RenderWindow->GetRenderers()->InitTraversal(sit);
@@ -104,7 +99,7 @@ void vtkRIBExporter::WriteData()
   // make sure it has at least one actor
   if (ren->GetActors()->GetNumberOfItems() < 1)
     {
-    vtkErrorMacro(<< "no actors found for writing .RIB file.");
+    vtkErrorMacro(<< "No actors found for writing .RIB file.");
     return;
     }
 
@@ -130,6 +125,7 @@ void vtkRIBExporter::WriteData()
   //  All textures must be made first
   //
   ac = ren->GetActors();
+  vtkCollection *textures = vtkCollection::New();
   vtkCollectionSimpleIterator ait;
   for ( ac->InitTraversal (ait); (anActor = ac->GetNextActor(ait)); )
     {
@@ -231,12 +227,12 @@ void vtkRIBExporter::WriteHeader (vtkRenderer *aRen)
   sprintf (imageFileName, "%s%s", this->FilePrefix, ".tif");
 
   fprintf (this->FilePtr, "FrameBegin %d\n", 1);
-  fprintf (this->FilePtr, "Display \"%s\" \"file\" \"rgba\"\n", imageFileName);
-  fprintf (this->FilePtr, "Declare \"bgcolor\" \"uniform color\"\n");
+  fprintf (this->FilePtr, "Display \"%s\" \"file\" \"rgb\"\n", imageFileName);
+  fprintf (this->FilePtr, "Declare \"color\" \"uniform color\"\n");
   if (this->Background)
     {
     double *color = aRen->GetBackground ();
-    fprintf (this->FilePtr, "Imager \"background\" \"bgcolor\" [%f %f %f]\n",
+    fprintf (this->FilePtr, "Imager \"background\" \"color\" [%f %f %f]\n",
              color[0], color[1], color[2]);
     }
   fprintf (this->FilePtr, "PixelSamples %d %d\n",
@@ -283,17 +279,17 @@ void vtkRIBExporter::WriteProperty (vtkProperty *aProperty,
   SpecularColor = aProperty->GetSpecularColor();
   Roughness = (RtFloat) (1.0 / aProperty->GetSpecularPower ());
 
-//
-// if there is a texture map we need to declare it
-//
+  //
+  // if there is a texture map we need to declare it
+  //
   mapName = (char *) NULL;
   if (aTexture)
     {
     mapName = this->GetTextureName(aTexture);
     if (mapName)
-        {
-        fprintf (this->FilePtr, "Declare \"mapname\" \"uniform string\"\n");
-        }
+      {
+      fprintf (this->FilePtr, "Declare \"texturename\" \"uniform string\"\n");
+      }
     }
 //
 // Now we need to check to see if an RIBProperty has been specified
@@ -308,60 +304,55 @@ void vtkRIBExporter::WriteProperty (vtkProperty *aProperty,
     if (aRIBProperty->GetSurfaceShader ())
       {
       fprintf (this->FilePtr, "%s \"%s\" ", "Surface", aRIBProperty->GetSurfaceShader ());
-      fprintf (this->FilePtr, "\"Ka\" [%f] ", Ambient);
-      fprintf (this->FilePtr, "\"Kd\" [%f] ", Diffuse);
-      fprintf (this->FilePtr, "\"Ks\" [%f] ", Specular);
-      fprintf (this->FilePtr, "\"roughness\" [%f] ", Roughness);
-      fprintf (this->FilePtr, "\"specularcolor\" [%f %f %f]",
-        SpecularColor[0], SpecularColor[1], SpecularColor[2]);
-      if (mapName)
-       {
-       fprintf (this->FilePtr, " \"mapname\" [\"%s\"]", mapName);
-       }
+      if (aRIBProperty->GetSurfaceShaderUsesDefaultParameters())
+        {
+        fprintf (this->FilePtr, "\"Ka\" [%f] ", Ambient);
+        fprintf (this->FilePtr, "\"Kd\" [%f] ", Diffuse);
+        fprintf (this->FilePtr, "\"Ks\" [%f] ", Specular);
+        fprintf (this->FilePtr, "\"roughness\" [%f] ", Roughness);
+        fprintf (this->FilePtr, "\"specularcolor\" [%f %f %f]\n",
+                 SpecularColor[0], SpecularColor[1], SpecularColor[2]);
+        if (mapName)
+          {
+          fprintf (this->FilePtr, " \"texturename\" [\"%s\"]", mapName);
+          }
+        }
+      if (aRIBProperty->GetSurfaceShaderParameters ())
+        {
+        fprintf (this->FilePtr, "%s\n", aRIBProperty->GetSurfaceShaderParameters ());
+        }
       }
-    if (aRIBProperty->GetParameters ())
-      {
-      fprintf (this->FilePtr, "%s", aRIBProperty->GetParameters ());
-      }
-      fprintf (this->FilePtr, "\n");
     if (aRIBProperty->GetDisplacementShader ())
       {
       fprintf (this->FilePtr, "%s \"%s\" ", "Displacement", aRIBProperty->GetDisplacementShader ());
-      fprintf (this->FilePtr, "\"Ka\" [%f] ", Ambient);
-      fprintf (this->FilePtr, "\"Kd\" [%f] ", Diffuse);
-      fprintf (this->FilePtr, "\"Ks\" [%f] ", Specular);
-      fprintf (this->FilePtr, "\"roughness\" [%f] ", Roughness);
-      fprintf (this->FilePtr, "\"specularcolor\" [%f %f %f]",
-        SpecularColor[0], SpecularColor[1], SpecularColor[2]);
       if (mapName)
-       {
-       fprintf (this->FilePtr, " \"mapname\" [\"%s\"]", mapName);
-       }
-      if (aRIBProperty->GetParameters ())
         {
-        fprintf (this->FilePtr, "%s", aRIBProperty->GetParameters ());
+        fprintf (this->FilePtr, " \"texturename\" [\"%s\"]", mapName);
+        }
+      if (aRIBProperty->GetDisplacementShaderParameters ())
+        {
+        fprintf (this->FilePtr, "%s", aRIBProperty->GetDisplacementShaderParameters ());
         }
       fprintf (this->FilePtr, "\n");
       }
     }
-// Normal Property
+// Default Property
   else
     {
-    fprintf (this->FilePtr, "Surface \"%s\" ", mapName ? "txtplastic" : "plastic");
+    fprintf (this->FilePtr, "Surface \"%s\" ", mapName ? "paintedplastic" : "plastic");
     fprintf (this->FilePtr, "\"Ka\" [%f] ", Ambient);
     fprintf (this->FilePtr, "\"Kd\" [%f] ", Diffuse);
     fprintf (this->FilePtr, "\"Ks\" [%f] ", Specular);
     fprintf (this->FilePtr, "\"roughness\" [%f] ", Roughness);
     fprintf (this->FilePtr, "\"specularcolor\" [%f %f %f] ",
-        SpecularColor[0], SpecularColor[1], SpecularColor[2]);
+             SpecularColor[0], SpecularColor[1], SpecularColor[2]);
     if (mapName)
-     {
-     fprintf (this->FilePtr, " \"mapname\" [\"%s\"]", mapName);
+      {
+      fprintf (this->FilePtr, " \"texturename\" [\"%s\"]", mapName);
      }
     fprintf (this->FilePtr, "\n");
     }
 }
-
 
 void vtkRIBExporter::WriteLight (vtkLight *aLight, int count)
 {
@@ -373,9 +364,9 @@ void vtkRIBExporter::WriteLight (vtkLight *aLight, int count)
   // get required info from light
   Intensity = aLight->GetIntensity();
   Color = aLight->GetDiffuseColor();
-  color[0] = Intensity * Color[0];
-  color[1] = Intensity * Color[1];
-  color[2] = Intensity * Color[2];
+  color[0] = Color[0];
+  color[1] = Color[1];
+  color[2] = Color[2];
   color[3] = 1.0;
 
   FocalPoint = aLight->GetFocalPoint();
@@ -407,6 +398,8 @@ void vtkRIBExporter::WriteLight (vtkLight *aLight, int count)
   else
     {
     double coneAngle = aLight->GetConeAngle ();
+    double coneAngleRadians = vtkMath::RadiansFromDegrees(coneAngle);
+
     double exponent = aLight->GetExponent ();
     fprintf (this->FilePtr, "LightSource \"spotlight\" %d ", count);
     fprintf (this->FilePtr, "\"intensity\" [%f] ", Intensity);
@@ -416,7 +409,7 @@ void vtkRIBExporter::WriteLight (vtkLight *aLight, int count)
         Position[0], Position[1], Position[2]);
     fprintf (this->FilePtr, "\"to\" [%f %f %f]\n",
         FocalPoint[0], FocalPoint[1], FocalPoint[2]);
-    fprintf (this->FilePtr, "\"coneangle\" [%f]\n", coneAngle);
+    fprintf (this->FilePtr, "\"coneangle\" [%f]\n", coneAngleRadians);
     fprintf (this->FilePtr, "\"beamdistribution\" [%f]\n", exponent);
     fprintf (this->FilePtr, "\"conedeltaangle\" [%f]\n", 0.0);
     }
@@ -718,7 +711,7 @@ void vtkRIBExporter::WritePolygons (vtkPolyData *polyData,
     case VTK_SURFACE:
       break;
     default:
-      vtkErrorMacro(<< "Bad representation sent\n");
+      vtkErrorMacro(<< "Bad representation. Only Surface is supported.");
       break;
     }
 
@@ -949,7 +942,7 @@ void vtkRIBExporter::WriteStrips (vtkPolyData *polyData,
     case VTK_SURFACE:
       break;
     default:
-      vtkErrorMacro(<< "Bad representation sent\n");
+      vtkErrorMacro(<< "Bad representation. Only Surface is supported.");
       break;
     }
 

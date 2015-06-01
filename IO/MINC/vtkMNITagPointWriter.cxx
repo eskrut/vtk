@@ -117,10 +117,7 @@ vtkMNITagPointWriter::~vtkMNITagPointWriter()
       }
     }
 
-  if (this->Comments)
-    {
-    delete [] this->Comments;
-    }
+  delete [] this->Comments;
 
   delete[] this->FileName;
 }
@@ -561,8 +558,5 @@ void vtkMNITagPointWriter::CloseFile(ostream *fp)
 {
   vtkDebugMacro(<<"Closing file\n");
 
-  if ( fp != NULL )
-    {
-    delete fp;
-    }
+  delete fp;
 }

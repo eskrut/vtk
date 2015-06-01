@@ -20,8 +20,8 @@
 // vtkGenericAttribute, vtkBridgeDataSet
 
 
-#ifndef __vtkBridgeAttribute_h
-#define __vtkBridgeAttribute_h
+#ifndef vtkBridgeAttribute_h
+#define vtkBridgeAttribute_h
 
 #include "vtkBridgeExport.h" //for module export macro
 #include "vtkGenericAttribute.h"
@@ -78,7 +78,7 @@ class VTKTESTINGGENERICBRIDGE_EXPORT vtkBridgeAttribute : public vtkGenericAttri
   vtkIdType GetSize();
 
   // Description:
-  // Size in kilobytes taken by the attribute.
+  // Size in kibibytes (1024 bytes) taken by the attribute.
   unsigned long GetActualMemorySize();
 
   // Description:

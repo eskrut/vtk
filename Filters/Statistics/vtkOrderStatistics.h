@@ -37,8 +37,8 @@ PURPOSE.  See the above copyright notice for more information.
 // for implementing this class.
 // Updated by Philippe Pebay, Kitware SAS 2012
 
-#ifndef __vtkOrderStatistics_h
-#define __vtkOrderStatistics_h
+#ifndef vtkOrderStatistics_h
+#define vtkOrderStatistics_h
 
 #include "vtkFiltersStatisticsModule.h" // For export macro
 #include "vtkStatisticsAlgorithm.h"
@@ -140,7 +140,7 @@ protected:
                                     AssessFunctor*& dfunc );
 //ETX
 
-  int NumberOfIntervals;
+  vtkIdType NumberOfIntervals;
   QuantileDefinitionType QuantileDefinition;
   bool Quantize;
   vtkIdType MaximumHistogramSize;

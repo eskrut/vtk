@@ -27,7 +27,7 @@
 #include "vtkInformation.h"
 #include "vtkStringArray.h"
 #include "vtkStdString.h"
-#include <vtkIOStream.h>
+#include "vtkIOStream.h"
 
 #include <vtksys/stl/algorithm>
 #include <vtksys/stl/vector>
@@ -137,7 +137,7 @@ int vtkFixedWidthTextReader::RequestData(
       // here because an unsigned int will never take up enough
       // characters to fill up this buffer.
       char fieldName[64];
-      sprintf(fieldName, "Field %d", i);
+      sprintf(fieldName, "Field %u", i);
       headers.push_back(fieldName);
       }
     }

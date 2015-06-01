@@ -112,10 +112,7 @@ vtkMFIXReader::vtkMFIXReader()
 //----------------------------------------------------------------------------
 vtkMFIXReader::~vtkMFIXReader()
 {
-  if ( this->FileName)
-    {
-    delete [] this->FileName;
-    }
+  delete [] this->FileName;
 
   if( this->CellDataArray )
   {
@@ -1612,7 +1609,7 @@ void vtkMFIXReader::ReadRestartFile()
 //----------------------------------------------------------------------------
 void vtkMFIXReader::CreateVariableNames()
 {
-  char fileName[256];
+  char fileName[VTK_MAXPATH];
   int cnt = 0;
   char uString[120];
   char vString[120];
@@ -1936,7 +1933,7 @@ void vtkMFIXReader::CreateVariableNames()
 void vtkMFIXReader::GetTimeSteps()
 {
   int nextRecord, numberOfRecords;
-  char fileName[256];
+  char fileName[VTK_MAXPATH];
   int cnt = 0;
 
   for (int i=0; i<this->NumberOfSPXFilesUsed; ++i)
@@ -2132,7 +2129,7 @@ void vtkMFIXReader::GetVariableAtTimestep(int vari , int tstep,
   char variableName[256];
   strcpy(variableName, this->VariableNames->GetValue(vari));
   int spx = this->VariableIndexToSPX->GetValue(vari);
-  char fileName[256];
+  char fileName[VTK_MAXPATH];
 
   for(int k=0;k<(int)sizeof(fileName);k++)
     {
@@ -2327,7 +2324,7 @@ void vtkMFIXReader::GetAllTimes(vtkInformationVector *outputVector)
       }
     }
 
-  char fileName[256];
+  char fileName[VTK_MAXPATH];
 
   for(int k=0;k<(int)sizeof(fileName);k++)
     {

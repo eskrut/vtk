@@ -19,8 +19,10 @@
 #include "vtkParse.h"
 #include "vtkParseMain.h"
 #include "vtkParseHierarchy.h"
+#include "vtkWrap.h"
 
 HierarchyInfo *hierarchyInfo = NULL;
+StringCache *stringCache = NULL;
 int numberOfWrappedFunctions = 0;
 FunctionInfo *wrappedFunctions[1000];
 extern FunctionInfo *currentFunction;
@@ -89,7 +91,7 @@ void output_proto_vars(FILE *fp, int i)
     case VTK_PARSE_VOID:   fprintf(fp,"void "); break;
     case VTK_PARSE_CHAR:   fprintf(fp,"jchar "); break;
     case VTK_PARSE_OBJECT:   fprintf(fp,"jobject "); break;
-    case VTK_PARSE_UNKNOWN: return;
+    case VTK_PARSE_UNKNOWN: fprintf(fp,"jint "); break;
     }
 
   fprintf(fp,"id%i",i);
@@ -211,6 +213,7 @@ void return_result(FILE *fp)
     case VTK_PARSE_UNSIGNED_ID_TYPE:
     case VTK_PARSE_UNSIGNED_LONG_LONG:
     case VTK_PARSE_UNSIGNED___INT64:
+    case VTK_PARSE_UNKNOWN:
       fprintf(fp,"jint ");
       break;
     case VTK_PARSE_BOOL:
@@ -293,7 +296,7 @@ void output_temp(FILE *fp, int i, unsigned int aType, const char *Id,
     case VTK_PARSE_BOOL:     fprintf(fp,"bool "); break;
     case VTK_PARSE_OBJECT:     fprintf(fp,"%s ",Id); break;
     case VTK_PARSE_STRING:  fprintf(fp,"%s ",Id); break;
-    case VTK_PARSE_UNKNOWN: return;
+    case VTK_PARSE_UNKNOWN: fprintf(fp,"%s ",Id); break;
     }
 
   switch (aType & VTK_PARSE_INDIRECT)
@@ -393,6 +396,10 @@ void get_args(FILE *fp, int i)
         {
         fprintf(fp,"  temp%i[%i] = ((jint *)tempArray%i)[%i];\n",i,j,i,j);
         }
+      break;
+    case VTK_PARSE_UNKNOWN:
+      fprintf(fp,"  temp%i = static_cast<%s>(id%i);\n",
+              i,currentFunction->ArgClasses[i],i);
       break;
     case VTK_PARSE_VOID:
     case VTK_PARSE_OBJECT:
@@ -801,7 +808,7 @@ int checkFunctionSignature(ClassInfo *data)
     VTK_PARSE_ID_TYPE, VTK_PARSE_UNSIGNED_ID_TYPE,
     VTK_PARSE_LONG_LONG, VTK_PARSE_UNSIGNED_LONG_LONG,
     VTK_PARSE___INT64, VTK_PARSE_UNSIGNED___INT64,
-    VTK_PARSE_OBJECT, VTK_PARSE_STRING,
+    VTK_PARSE_OBJECT, VTK_PARSE_STRING, VTK_PARSE_UNKNOWN,
     0
   };
 
@@ -867,6 +874,25 @@ int checkFunctionSignature(ClassInfo *data)
       args_ok = 0;
       }
 
+    if (baseType == VTK_PARSE_UNKNOWN)
+      {
+      const char *qualified_name = 0;
+      if ((aType & VTK_PARSE_INDIRECT) == 0)
+        {
+        qualified_name = vtkParseHierarchy_QualifiedEnumName(
+          hierarchyInfo, data, stringCache,
+          currentFunction->ArgClasses[i]);
+        }
+      if (qualified_name)
+        {
+        currentFunction->ArgClasses[i] = qualified_name;
+        }
+      else
+        {
+        args_ok = 0;
+        }
+      }
+
     if (baseType == VTK_PARSE_OBJECT)
       {
       if ((aType & VTK_PARSE_INDIRECT) != VTK_PARSE_POINTER)
@@ -902,6 +928,25 @@ int checkFunctionSignature(ClassInfo *data)
   if (supported_types[j] == 0)
     {
     args_ok = 0;
+    }
+
+  if (baseType == VTK_PARSE_UNKNOWN)
+    {
+    const char *qualified_name = 0;
+    if ((rType & VTK_PARSE_INDIRECT) == 0)
+      {
+      qualified_name = vtkParseHierarchy_QualifiedEnumName(
+        hierarchyInfo, data, stringCache,
+        currentFunction->ReturnClass);
+      }
+    if (qualified_name)
+      {
+      currentFunction->ReturnClass = qualified_name;
+      }
+    else
+      {
+      args_ok = 0;
+      }
     }
 
   if (baseType == VTK_PARSE_OBJECT)
@@ -1211,6 +1256,9 @@ int main(int argc, char *argv[])
   /* get command-line args and parse the header file */
   file_info = vtkParse_Main(argc, argv);
 
+  /* some utility functions require the string cache */
+  stringCache = file_info->Strings;
+
   /* get the command-line options */
   options = vtkParse_GetCommandLineOptions();
 
@@ -1234,6 +1282,11 @@ int main(int argc, char *argv[])
   if (options->HierarchyFileName)
     {
     hierarchyInfo = vtkParseHierarchy_ReadFile(options->HierarchyFileName);
+    if (hierarchyInfo)
+      {
+      /* resolve using declarations within the header files */
+      vtkWrap_ApplyUsingDeclarations(data, file_info, hierarchyInfo);
+      }
     }
 
   fprintf(fp,"// java wrapper for %s object\n//\n",data->Name);
@@ -1251,8 +1304,20 @@ int main(int argc, char *argv[])
 
   for (i = 0; i < data->NumberOfSuperClasses; i++)
     {
+    char *safe_name = vtkWrap_SafeSuperclassName(data->SuperClasses[i]);
+    const char *safe_superclass = safe_name ? safe_name : data->SuperClasses[i];
+
+    /* if a template class is detected add a typedef */
+    if (safe_name)
+      {
+      fprintf(fp,"typedef %s %s;\n",
+              data->SuperClasses[i], safe_name);
+      }
+
     fprintf(fp,"extern \"C\" JNIEXPORT void* %s_Typecast(void *op,char *dType);\n",
-            data->SuperClasses[i]);
+            safe_superclass);
+
+    free(safe_name);
     }
 
   fprintf(fp,"\nextern \"C\" JNIEXPORT void* %s_Typecast(void *me,char *dType)\n{\n",data->Name);
@@ -1264,9 +1329,14 @@ int main(int argc, char *argv[])
   /* check our superclasses */
   for (i = 0; i < data->NumberOfSuperClasses; i++)
     {
+    char *safe_name = vtkWrap_SafeSuperclassName(data->SuperClasses[i]);
+    const char *safe_superclass = safe_name ? safe_name : data->SuperClasses[i];
+
     fprintf(fp,"  if ((res= %s_Typecast(me,dType)) != NULL)",
-            data->SuperClasses[i]);
+            safe_superclass);
     fprintf(fp," { return res; }\n");
+
+    free(safe_name);
     }
   fprintf(fp,"  return NULL;\n");
   fprintf(fp,"}\n\n");

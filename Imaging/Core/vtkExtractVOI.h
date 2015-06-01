@@ -33,8 +33,8 @@
 // .SECTION See Also
 // vtkGeometryFilter vtkExtractGeometry vtkExtractGrid
 
-#ifndef __vtkExtractVOI_h
-#define __vtkExtractVOI_h
+#ifndef vtkExtractVOI_h
+#define vtkExtractVOI_h
 
 #include "vtkImagingCoreModule.h" // For export macro
 #include "vtkImageAlgorithm.h"
@@ -91,6 +91,14 @@ protected:
   virtual int RequestData(vtkInformation* request,
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
+
+  // Description:
+  // Implementation for RequestData using a specified VOI. This is because the
+  // parallel filter needs to muck around with the VOI to get spacing and
+  // partitioning to play nice.
+  bool RequestDataImpl(int voi[6],
+                       vtkInformationVector **inputVector,
+                       vtkInformationVector *outputVector);
 
   int VOI[6];
   int SampleRate[3];

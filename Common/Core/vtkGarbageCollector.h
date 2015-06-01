@@ -73,8 +73,8 @@
 // If subclassing from a class that already supports garbage
 // collection, one need only provide the ReportReferences method.
 
-#ifndef __vtkGarbageCollector_h
-#define __vtkGarbageCollector_h
+#ifndef vtkGarbageCollector_h
+#define vtkGarbageCollector_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -131,10 +131,10 @@ public:
   static void DeferredCollectionPop();
 
   // Description:
-  // Set/Get global garbage collection debugging flag.  When set to 1,
+  // Set/Get global garbage collection debugging flag.  When set to true,
   // all garbage collection checks will produce debugging information.
-  static void SetGlobalDebugFlag(int flag);
-  static int GetGlobalDebugFlag();
+  static void SetGlobalDebugFlag(bool flag);
+  static bool GetGlobalDebugFlag();
 
 protected:
   vtkGarbageCollector();

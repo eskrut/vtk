@@ -487,14 +487,8 @@ void vtkTessellatorFilter::Teardown()
 {
   this->OutputMesh = 0;
   this->OutputPoints = 0;
-  if ( this->OutputAttributes )
-    {
-    delete [] this->OutputAttributes;
-    }
-  if ( this->OutputAttributeIndices )
-    {
-    delete [] this->OutputAttributeIndices;
-    }
+  delete [] this->OutputAttributes;
+  delete [] this->OutputAttributeIndices;
   this->Subdivider->ResetFieldList();
   this->Subdivider->SetMesh(0);
 }
@@ -1353,7 +1347,7 @@ int vtkTessellatorFilter::RequestData(
           cp->EvaluateLocation( dummySubId, pts[p] + 3, pts[p], weights );
           this->Subdivider->EvaluateFields( pts[p], weights, 6 );
           }
-        // fall through
+        VTK_FALLTHROUGH;
       case VTK_QUADRATIC_HEXAHEDRON:
         for ( p = 20; p < 27; ++p )
           {

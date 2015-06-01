@@ -21,8 +21,8 @@
 // .SECTION see also
 //
 
-#ifndef __vtkAMRVolumeMapper_h
-#define __vtkAMRVolumeMapper_h
+#ifndef vtkAMRVolumeMapper_h
+#define vtkAMRVolumeMapper_h
 
 #include "vtkRenderingVolumeAMRModule.h" // For export macro
 #include "vtkVolumeMapper.h"
@@ -207,20 +207,6 @@ public:
   // The default is 128x128x128
   vtkSetVector3Macro(NumberOfSamples,int);
   vtkGetVector3Macro(NumberOfSamples,int);
-
-  // Description:
-  // Set the rate at or above this render will be considered interactive.
-  // If the DesiredUpdateRate of the vtkRenderWindow that caused the Render
-  // falls at or above this rate, the render is considered interactive and
-  // the mapper may be adjusted (depending on the render mode).
-  // Initial value is 1.0.
-  virtual void SetInteractiveUpdateRate(double rate);
-
-  // Description:
-  // Get the update rate at or above which this is considered an
-  // interactive render.
-  // Initial value is 1.0.
-  virtual double GetInteractiveUpdateRate();
 
 //BTX
   // Description:

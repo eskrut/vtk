@@ -40,10 +40,7 @@ vtkPStructuredGridConnectivity::vtkPStructuredGridConnectivity()
 vtkPStructuredGridConnectivity::~vtkPStructuredGridConnectivity()
 {
   // STEP 0: Delete MPI requests list
-  if( this->MPIRequests == NULL )
-    {
-    delete [] this->MPIRequests;
-    }
+  delete [] this->MPIRequests;
 
   // STEP 1: Clear all remote data
   this->ClearRemoteData();
@@ -74,6 +71,11 @@ void vtkPStructuredGridConnectivity::Initialize()
 //------------------------------------------------------------------------------
 void vtkPStructuredGridConnectivity::SetNumberOfGrids( const unsigned int N )
 {
+  if (N == 0)
+    {
+    vtkErrorMacro("Number of grids cannot be 0.");
+    return;
+    }
   this->Superclass::SetNumberOfGrids( N );
   this->GridRanks.resize( N,-1 );
 }
@@ -898,7 +900,7 @@ void vtkPStructuredGridConnectivity::SerializeDataArray(
           static_cast<int*>(dataArray->GetVoidPointer(0)), size );
       break;
     default:
-      vtkErrorMacro("Cannot serialize data array of this type");
+      vtkErrorMacro("Cannot serialize data array of type"<<dataArray->GetDataType());
     }
 }
 

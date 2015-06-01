@@ -33,8 +33,8 @@
 // vtkMinimalStandardRandomSequence, vtkBoxMuellerRandomSequence,
 // vtkQuaternion
 
-#ifndef __vtkMath_h
-#define __vtkMath_h
+#ifndef vtkMath_h
+#define vtkMath_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -996,17 +996,6 @@ inline double vtkMath::DegreesFromRadians( double x )
 }
 
 //----------------------------------------------------------------------------
-inline vtkTypeInt64 vtkMath::Factorial( int N )
-{
-  vtkTypeInt64 r = 1;
-  while ( N > 1 )
-    {
-    r *= N--;
-    }
-  return r;
-}
-
-//----------------------------------------------------------------------------
 inline bool vtkMath::IsPowerOfTwo(vtkTypeUInt64 x)
 {
   return ((x != 0) & ((x & (x - 1)) == 0));
@@ -1046,8 +1035,8 @@ inline int vtkMath::Ceil(double x)
 //----------------------------------------------------------------------------
 inline float vtkMath::Normalize(float x[3])
 {
-  float den;
-  if ( ( den = vtkMath::Norm( x ) ) != 0.0 )
+  float den = vtkMath::Norm( x );
+  if ( den != 0.0 )
     {
     for (int i=0; i < 3; i++)
       {
@@ -1060,8 +1049,8 @@ inline float vtkMath::Normalize(float x[3])
 //----------------------------------------------------------------------------
 inline double vtkMath::Normalize(double x[3])
 {
-  double den;
-  if ( ( den = vtkMath::Norm( x ) ) != 0.0 )
+  double den = vtkMath::Norm( x );
+  if ( den != 0.0 )
     {
     for (int i=0; i < 3; i++)
       {
@@ -1074,8 +1063,8 @@ inline double vtkMath::Normalize(double x[3])
 //----------------------------------------------------------------------------
 inline float vtkMath::Normalize2D(float x[3])
 {
-  float den;
-  if ( ( den = vtkMath::Norm2D( x ) ) != 0.0 )
+  float den = vtkMath::Norm2D( x );
+  if ( den != 0.0 )
     {
     for (int i=0; i < 2; i++)
       {
@@ -1088,8 +1077,8 @@ inline float vtkMath::Normalize2D(float x[3])
 //----------------------------------------------------------------------------
 inline double vtkMath::Normalize2D(double x[3])
 {
-  double den;
-  if ( ( den = vtkMath::Norm2D( x ) ) != 0.0 )
+  double den = vtkMath::Norm2D( x );
+  if ( den != 0.0 )
     {
     for (int i=0; i < 2; i++)
       {

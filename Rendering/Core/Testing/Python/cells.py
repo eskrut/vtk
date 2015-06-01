@@ -612,19 +612,20 @@ class cells(vtk.test.Testing.vtkTest):
         aHexaActor.GetProperty().BackfaceCullingOn()
 
         # RIB property
-        aRIBProperty = vtk.vtkRIBProperty()
-        aRIBProperty.SetVariable("Km", "float")
-        aRIBProperty.SetSurfaceShader("LGVeinedmarble")
-        aRIBProperty.SetVariable("veinfreq", "float")
-        aRIBProperty.AddVariable("warpfreq", "float")
-        aRIBProperty.AddVariable("veincolor", "color")
-        aRIBProperty.AddParameter("veinfreq", " 2")
-        aRIBProperty.AddParameter("veincolor", "1.0000 1.0000 0.9412")
-        bRIBProperty = vtk.vtkRIBProperty()
-        bRIBProperty.SetVariable("Km", "float")
-        bRIBProperty.SetParameter("Km", "1.0")
-        bRIBProperty.SetDisplacementShader("dented")
-        bRIBProperty.SetSurfaceShader("plastic")
+        if hasattr(vtk, 'vtkRIBProperty'):
+            aRIBProperty = vtk.vtkRIBProperty()
+            aRIBProperty.SetVariable("Km", "float")
+            aRIBProperty.SetSurfaceShader("LGVeinedmarble")
+            aRIBProperty.SetVariable("veinfreq", "float")
+            aRIBProperty.AddVariable("warpfreq", "float")
+            aRIBProperty.AddVariable("veincolor", "color")
+            aRIBProperty.AddParameter("veinfreq", " 2")
+            aRIBProperty.AddParameter("veincolor", "1.0000 1.0000 0.9412")
+            bRIBProperty = vtk.vtkRIBProperty()
+            bRIBProperty.SetVariable("Km", "float")
+            bRIBProperty.SetParameter("Km", "1.0")
+            bRIBProperty.SetDisplacementShader("dented")
+            bRIBProperty.SetSurfaceShader("plastic")
         aProperty = vtk.vtkProperty()
         bProperty = vtk.vtkProperty()
 
@@ -650,13 +651,15 @@ class cells(vtk.test.Testing.vtkTest):
         ren.AddActor(aPentaActor);aPentaActor.GetProperty().SetDiffuseColor(.2, .4, .7)
         ren.AddActor(aHexaActor);aHexaActor.GetProperty().SetDiffuseColor(.7, .5, 1)
 
-        aRIBLight = vtk.vtkRIBLight()
-        aRIBLight.ShadowsOn()
+        if hasattr(vtk, 'vtkRIBLight'):
+            aRIBLight = vtk.vtkRIBLight()
+
+        ren.AddLight(aRIBLight)
         aLight = vtk.vtkLight()
 
         aLight.PositionalOn()
-        aLight.SetConeAngle(25)
-
+        aLight.SetConeAngle(10.0)
+        aLight.SetIntensity(20.0)
         ren.AddLight(aLight)
 
         ren.ResetCamera()
@@ -664,9 +667,6 @@ class cells(vtk.test.Testing.vtkTest):
         ren.GetActiveCamera().Elevation(20)
         ren.GetActiveCamera().Dolly(2.8)
         ren.ResetCameraClippingRange()
-
-        aLight.SetFocalPoint(ren.GetActiveCamera().GetFocalPoint())
-        aLight.SetPosition(ren.GetActiveCamera().GetPosition())
 
         # write to the temp directory if possible, otherwise use .
         dir = tempfile.gettempdir()
@@ -677,40 +677,47 @@ class cells(vtk.test.Testing.vtkTest):
         atext.SetInputConnection(pnmReader.GetOutputPort())
         atext.InterpolateOff()
         aTriangleActor.SetTexture(atext)
-        rib = vtk.vtkRIBExporter()
-        rib.SetInput(renWin)
-        rib.SetFilePrefix(dir + '/cells')
-        rib.SetTexturePrefix(dir + '/cells')
-        rib.Write()
-        os.remove(dir + '/cells.rib')
 
-        iv = vtk.vtkIVExporter()
-        iv.SetInput(renWin)
-        iv.SetFileName(dir + "/cells.iv")
-        iv.Write()
-        os.remove(dir + '/cells.iv')
+        aRIBLight.SetFocalPoint(ren.GetActiveCamera().GetFocalPoint())
+        aRIBLight.SetPosition(ren.GetActiveCamera().GetPosition())
+        aLight.SetFocalPoint(ren.GetActiveCamera().GetFocalPoint())
+        aLight.SetPosition(ren.GetActiveCamera().GetPosition())
 
-        obj = vtk.vtkOBJExporter()
-        obj.SetInput(renWin)
-        obj.SetFilePrefix(dir + "/cells")
-        obj.Write()
-        os.remove(dir + '/cells.obj')
-        os.remove(dir + '/cells.mtl')
+        # bascially have IO/Export ?
+        if hasattr(vtk, 'vtkRIBExporter'):
+            rib = vtk.vtkRIBExporter()
+            rib.SetInput(renWin)
+            rib.SetFilePrefix(dir + '/cells')
+            rib.SetTexturePrefix(dir + '/cells')
+            rib.Write()
 
-        vrml = vtk.vtkVRMLExporter()
-        vrml.SetInput(renWin)
-        #vrml.SetStartWrite(vrml.SetFileName(dir + "/cells.wrl"))
-        #vrml.SetEndWrite(vrml.SetFileName("/a/acells.wrl"))
-        vrml.SetFileName(dir + "/cells.wrl")
-        vrml.SetSpeed(5.5)
-        vrml.Write()
-        os.remove(dir + '/cells.wrl')
+            iv = vtk.vtkIVExporter()
+            iv.SetInput(renWin)
+            iv.SetFileName(dir + "/cells.iv")
+            iv.Write()
+            os.remove(dir + '/cells.iv')
 
-        oogl = vtk.vtkOOGLExporter()
-        oogl.SetInput(renWin)
-        oogl.SetFileName(dir + "/cells.oogl")
-        oogl.Write()
-        os.remove(dir + '/cells.oogl')
+            obj = vtk.vtkOBJExporter()
+            obj.SetInput(renWin)
+            obj.SetFilePrefix(dir + "/cells")
+            obj.Write()
+            os.remove(dir + '/cells.obj')
+            os.remove(dir + '/cells.mtl')
+
+            vrml = vtk.vtkVRMLExporter()
+            vrml.SetInput(renWin)
+            #vrml.SetStartWrite(vrml.SetFileName(dir + "/cells.wrl"))
+            #vrml.SetEndWrite(vrml.SetFileName("/a/acells.wrl"))
+            vrml.SetFileName(dir + "/cells.wrl")
+            vrml.SetSpeed(5.5)
+            vrml.Write()
+            os.remove(dir + '/cells.wrl')
+
+            oogl = vtk.vtkOOGLExporter()
+            oogl.SetInput(renWin)
+            oogl.SetFileName(dir + "/cells.oogl")
+            oogl.Write()
+            os.remove(dir + '/cells.oogl')
 
         # the UnRegister calls are because make object is the same as New,
         # and causes memory leaks. (Python does not treat NewInstance the same as New).

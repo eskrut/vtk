@@ -27,7 +27,6 @@
 #include "vtkNew.h"
 #include "vtksys/ios/sstream"
 
-vtkCxxSetObjectMacro(vtkPlot, Selection, vtkIdTypeArray);
 vtkCxxSetObjectMacro(vtkPlot, XAxis, vtkAxis);
 vtkCxxSetObjectMacro(vtkPlot, YAxis, vtkAxis);
 
@@ -37,9 +36,17 @@ vtkPlot::vtkPlot() : ShiftScale(0.0, 0.0, 1.0, 1.0)
   this->Pen = vtkSmartPointer<vtkPen>::New();
   this->Pen->SetWidth(2.0);
   this->Brush = vtkSmartPointer<vtkBrush>::New();
+
+  this->SelectionPen = vtkSmartPointer<vtkPen>::New();
+  this->SelectionPen->SetColor(255, 50, 0, 150);
+  this->SelectionPen->SetWidth(4.0);
+  this->SelectionBrush = vtkSmartPointer<vtkBrush>::New();
+  this->SelectionBrush->SetColor(255, 50, 0, 150);
+
   this->Labels = NULL;
   this->UseIndexForXSeries = false;
   this->Data = vtkSmartPointer<vtkContextMapper2D>::New();
+  this->Selectable = true;
   this->Selection = NULL;
   this->XAxis = NULL;
   this->YAxis = NULL;
@@ -255,6 +262,38 @@ vtkBrush* vtkPlot::GetBrush()
 }
 
 //-----------------------------------------------------------------------------
+void vtkPlot::SetSelectionPen(vtkPen *pen)
+{
+  if (this->SelectionPen != pen)
+    {
+    this->SelectionPen = pen;
+    this->Modified();
+    }
+}
+
+//-----------------------------------------------------------------------------
+vtkPen* vtkPlot::GetSelectionPen()
+{
+  return this->SelectionPen.GetPointer();
+}
+
+//-----------------------------------------------------------------------------
+void vtkPlot::SetSelectionBrush(vtkBrush *brush)
+{
+  if (this->SelectionBrush != brush)
+    {
+    this->SelectionBrush = brush;
+    this->Modified();
+    }
+}
+
+//-----------------------------------------------------------------------------
+vtkBrush* vtkPlot::GetSelectionBrush()
+{
+  return this->SelectionBrush.GetPointer();
+}
+
+//-----------------------------------------------------------------------------
 void vtkPlot::SetLabel(const vtkStdString& label)
 {
   vtkNew<vtkStringArray> labels;
@@ -454,6 +493,16 @@ void vtkPlot::SetInputArray(int index, const vtkStdString &name)
                                      vtkDataObject::FIELD_ASSOCIATION_ROWS,
                                      name.c_str());
   this->AutoLabels = 0; // No longer valid
+}
+
+//-----------------------------------------------------------------------------
+void vtkPlot::SetSelection(vtkIdTypeArray *id)
+{
+  if (!this->GetSelectable())
+    {
+    return;
+    }
+  vtkSetObjectBodyMacro(Selection,vtkIdTypeArray,id);
 }
 
 //-----------------------------------------------------------------------------

@@ -17,12 +17,16 @@
 // vtkIntArray is an array of values of type int.  It provides
 // methods for insertion and retrieval of values and will
 // automatically resize itself to hold new data.
+//
+// The C++ standard does not define the exact size of the int type, so use
+// of this type directly is discouraged.  If an array of 32 bit integers is
+// needed, prefer vtkTypeInt32Array to this class.
 
-#ifndef __vtkIntArray_h
-#define __vtkIntArray_h
+#ifndef vtkIntArray_h
+#define vtkIntArray_h
 
 // Tell the template header how to give our superclass a DLL interface.
-#if !defined(__vtkIntArray_cxx) && (defined(VTK_USE_64BIT_IDS) || !defined(__vtkIdTypeArray_h))
+#if !defined(vtkIntArray_cxx) && (defined(VTK_USE_64BIT_IDS) || !defined(vtkIdTypeArray_h))
 # define VTK_DATA_ARRAY_TEMPLATE_TYPE int
 #endif
 

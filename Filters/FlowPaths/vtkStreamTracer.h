@@ -74,8 +74,8 @@
 // vtkCellLocatorInterpolatedVelocityField
 //
 
-#ifndef __vtkStreamTracer_h
-#define __vtkStreamTracer_h
+#ifndef vtkStreamTracer_h
+#define vtkStreamTracer_h
 
 #include "vtkFiltersFlowPathsModule.h" // For export macro
 #include "vtkPolyDataAlgorithm.h"
@@ -244,6 +244,12 @@ public:
   vtkSetMacro(TerminalSpeed, double);
   vtkGetMacro(TerminalSpeed, double);
 
+  // Description:
+  // Set/Unset the streamlines to be computed on a surface
+  vtkGetMacro(SurfaceStreamlines, bool);
+  vtkSetMacro(SurfaceStreamlines, bool);
+  vtkBooleanMacro(SurfaceStreamlines, bool);
+
 //BTX
   enum
   {
@@ -383,6 +389,9 @@ protected:
 
   bool ComputeVorticity;
   double RotationScale;
+
+  // Compute streamlines only on surface.
+  bool SurfaceStreamlines;
 
   vtkAbstractInterpolatedVelocityField * InterpolatorPrototype;
 

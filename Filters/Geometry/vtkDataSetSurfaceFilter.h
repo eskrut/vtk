@@ -22,8 +22,8 @@
 // .SECTION See Also
 // vtkGeometryFilter vtkStructuredGridGeometryFilter.
 
-#ifndef __vtkDataSetSurfaceFilter_h
-#define __vtkDataSetSurfaceFilter_h
+#ifndef vtkDataSetSurfaceFilter_h
+#define vtkDataSetSurfaceFilter_h
 
 #include "vtkFiltersGeometryModule.h" // For export macro
 #include "vtkPolyDataAlgorithm.h"
@@ -131,8 +131,7 @@ public:
     }
 #endif
   virtual int UnstructuredGridExecute(vtkDataSet *input,
-                                      vtkPolyData *output,
-                                      int updateghostlevel);
+                                      vtkPolyData *output);
   virtual int DataSetExecute(vtkDataSet *input, vtkPolyData *output);
   virtual int UniformGridExecute(
       vtkDataSet *input, vtkPolyData *output,

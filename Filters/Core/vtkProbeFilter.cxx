@@ -279,7 +279,7 @@ void vtkProbeFilter::ProbeEmptyPoints(vtkDataSet *input,
     // Use tolerance as a function of size of source data
     //
     tol2 = source->GetLength();
-    tol2 = tol2 ? tol2*tol2 / 1000.0 : 0.001;
+    tol2 = (tol2 != 0.0) ? tol2*tol2 / 1000.0 : 0.001;
 
     // the actual sampling rate needs to be considered for a
     // more appropriate / accurate selection of the tolerance.
@@ -300,7 +300,6 @@ void vtkProbeFilter::ProbeEmptyPoints(vtkDataSet *input,
 
     // Don't go below epsilon for a double
     tol2 = (tol2 < VTK_DBL_EPSILON) ? VTK_DBL_EPSILON : tol2;
-    this->Tolerance = sqrt(tol2);
     }
   else
     {

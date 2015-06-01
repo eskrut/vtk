@@ -20,17 +20,15 @@
 // (currently Sequential, TBB and X-Kaapi) that actual execution is
 // delegated to.
 
-#ifndef __vtkSMPTools_h__
-#define __vtkSMPTools_h__
+#ifndef vtkSMPTools_h__
+#define vtkSMPTools_h__
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
 
 #include "vtkSMPThreadLocal.h" // For Initialized
-
-class vtkSMPTools;
-
 #include "vtkSMPToolsInternal.h"
+
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 #ifndef __WRAP__
@@ -206,6 +204,13 @@ public:
   // When using Kaapi, use the KAAPI_CPUCOUNT env. variable to control
   // the number of threads used in the thread pool.
   static void Initialize(int numThreads=0);
+
+  // Description:
+  // Get the estimated number of threads being used by the backend.
+  // This should be used as just an estimate since the number of threads may
+  // vary dynamically and a particular task may not be executed on all the
+  // available threads.
+  static int GetEstimatedNumberOfThreads();
 };
 
 #endif

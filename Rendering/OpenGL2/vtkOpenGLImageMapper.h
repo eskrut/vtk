@@ -24,8 +24,8 @@
 // .SECTION See Also
 // vtkImageMapper
 
-#ifndef __vtkOpenGLImageMapper_h
-#define __vtkOpenGLImageMapper_h
+#ifndef vtkOpenGLImageMapper_h
+#define vtkOpenGLImageMapper_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkImageMapper.h"
@@ -55,6 +55,11 @@ public:
   // draw the data once it has been converted to uchar, windowed leveled
   // used internally by the templated functions
   void DrawPixels(vtkViewport *vp, int width, int height, int numComponents, void *data);
+
+  // Description:
+  // Release any graphics resources that are being consumed by this
+  // mapper, the image texture in particular.
+  void ReleaseGraphicsResources(vtkWindow *);
 
 protected:
   vtkOpenGLImageMapper();

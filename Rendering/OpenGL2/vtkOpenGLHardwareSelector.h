@@ -21,8 +21,8 @@
 // .SECTION See Also
 // vtkHardwareSelector
 
-#ifndef __vtkOpenGLHardwareSelector_h
-#define __vtkOpenGLHardwareSelector_h
+#ifndef vtkOpenGLHardwareSelector_h
+#define vtkOpenGLHardwareSelector_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkHardwareSelector.h"
@@ -63,6 +63,8 @@ protected:
   // for device specific configuration/preparation etc.
   virtual void BeginRenderProp(vtkRenderWindow *);
   virtual void EndRenderProp(vtkRenderWindow *);
+
+  virtual void SavePixelBuffer(int passNo);
 
   // for internal state
   class vtkInternals;

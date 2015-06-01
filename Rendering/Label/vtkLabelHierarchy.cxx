@@ -48,7 +48,7 @@
 #include <vector>
 #include <map>
 
-#include <stdlib.h>
+#include <cstdlib>
 
 // WORKAROUND:
 //
@@ -854,6 +854,7 @@ void vtkLabelHierarchyQuadtreeIterator::Prepare(
     this->BucketSize[i] = bucketSize[i];
     }
   this->SetRenderer( ren );
+#if 0
   if ( cam->GetParallelProjection() )
     { // Compute threshold for quadtree nodes too small to visit using parallel projection
     //cout << "SizeLimit ParallelProj ps: " << cam->GetParallelScale() << "\n";
@@ -874,18 +875,18 @@ void vtkLabelHierarchyQuadtreeIterator::Prepare(
       double vs = ren->GetSize()[1];
       vsr = this->BucketSize[1] ? ( vs / this->BucketSize[1] ) : VTK_DOUBLE_MAX;
       }
-    static_cast<void>(vsr); // fix for 'set but not used' warning for vsr
     //double fac = vsr ? ( 0.1 * tva / vsr ) : 0.;
     //cout << "SizeLimit  va: " << va << " tva: " << tva << " vsr: " << vsr << " fac: " << fac << " slim: " << fac * fac << "\n";
     //this->SizeLimit = fac * fac;
     }
+#endif
 }
 
 void vtkLabelHierarchyQuadtreeIterator::Begin( vtkIdTypeArray* vtkNotUsed(lastPlaced) )
 {
-  this->Node = this->Hierarchy->GetImplementation()->Hierarchy2->root();
-  if ( &(this->Node->value()) )
+  if ( this->Hierarchy->GetImplementation()->Hierarchy2 )
     {
+    this->Node = this->Hierarchy->GetImplementation()->Hierarchy2->root();
     if ( this->IsNodeInFrustum( this->Node ) )
       {
       this->QueueChildren();
@@ -1180,6 +1181,7 @@ void vtkLabelHierarchyOctreeQueueIterator::Prepare(
     this->BucketSize[i] = bucketSize[i];
     }
   this->SetRenderer( ren );
+#if 0
   if ( cam->GetParallelProjection() )
     { // Compute threshold for quadtree nodes too small to visit using parallel projection
     //cout << "SizeLimit ParallelProj ps: " << cam->GetParallelScale() << "\n";
@@ -1200,11 +1202,11 @@ void vtkLabelHierarchyOctreeQueueIterator::Prepare(
       double vs = ren->GetSize()[1];
       vsr = this->BucketSize[1] ? ( vs / this->BucketSize[1] ) : VTK_DOUBLE_MAX;
       }
-    static_cast<void>(vsr); // fix for 'set but not used' warning for vsr
     //double fac = vsr ? ( 0.1 * tva / vsr ) : 0.;
     //cout << "SizeLimit  va: " << va << " tva: " << tva << " vsr: " << vsr << " fac: " << fac << " slim: " << fac * fac << "\n";
     //this->SizeLimit = fac * fac;
     }
+#endif
 }
 
 void vtkLabelHierarchyOctreeQueueIterator::Begin( vtkIdTypeArray* lastPlaced )
@@ -1227,9 +1229,9 @@ void vtkLabelHierarchyOctreeQueueIterator::Begin( vtkIdTypeArray* lastPlaced )
       }
     }
 
-  this->Node = this->Hierarchy->GetImplementation()->Hierarchy3->root();
-  if ( &(this->Node->value()) )
+  if ( this->Hierarchy->GetImplementation()->Hierarchy3 )
     {
+    this->Node = this->Hierarchy->GetImplementation()->Hierarchy3->root();
     if ( this->IsNodeInFrustum( this->Node ) )
       {
       this->QueueChildren();
@@ -1553,6 +1555,7 @@ void vtkLabelHierarchy3DepthFirstIterator::Prepare(
     this->BucketSize[i] = bucketSize[i];
     }
   this->SetRenderer( ren );
+#if 0
   if ( cam->GetParallelProjection() )
     { // Compute threshold for quadtree nodes too small to visit using parallel projection
     //cout << "SizeLimit ParallelProj ps: " << cam->GetParallelScale() << "\n";
@@ -1573,21 +1576,21 @@ void vtkLabelHierarchy3DepthFirstIterator::Prepare(
       double vs = ren->GetSize()[1];
       vsr = vs / this->BucketSize[1];
       }
-    static_cast<void>(vsr); // fix for 'set but not used' warning for vsr
     //double fac = 0.1 * tva / vsr;
     //cout << "SizeLimit  va: " << va << " tva: " << tva << " vsr: " << vsr << " fac: " << fac << " slim: " << fac * fac << "\n";
     //this->SizeLimit = fac * fac;
     }
+#endif
 }
 
 void vtkLabelHierarchy3DepthFirstIterator::Begin( vtkIdTypeArray* vtkNotUsed(lastPlaced) )
 {
   this->Path.clear();
   this->Order.clear();
-  this->Cursor = vtkLabelHierarchy::Implementation::HierarchyCursor3( this->Hierarchy->GetImplementation()->Hierarchy3 );
   this->DidRoot = false;
-  if ( &(this->Cursor->value()) )
+  if ( this->Hierarchy->GetImplementation()->Hierarchy3 )
     {
+    this->Cursor = vtkLabelHierarchy::Implementation::HierarchyCursor3( this->Hierarchy->GetImplementation()->Hierarchy3 );
     if ( this->IsNodeInFrustum() )
       {
       this->BoxNode();
@@ -1958,14 +1961,8 @@ void vtkLabelHierarchyBuildCoincidenceMap(
 // in the highest possible level of octree which is not already full.
 void vtkLabelHierarchy::ComputeHierarchy()
 {
-  if ( this->Impl->Hierarchy3 )
-    {
-    delete this->Impl->Hierarchy3;
-    }
-  if ( this->Impl->Hierarchy2 )
-    {
-    delete this->Impl->Hierarchy2;
-    }
+  delete this->Impl->Hierarchy3;
+  delete this->Impl->Hierarchy2;
   this->Impl->ActualDepth = 0;
 
   double bounds[6];

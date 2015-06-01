@@ -19,8 +19,8 @@
 // This defines the implementation of a 3D context device for drawing simple
 // primitives.
 
-#ifndef __vtkOpenGLContextDevice3D_h
-#define __vtkOpenGLContextDevice3D_h
+#ifndef vtkOpenGLContextDevice3D_h
+#define vtkOpenGLContextDevice3D_h
 
 #include "vtkRenderingContextOpenGLModule.h" // For export macro
 #include "vtkContextDevice3D.h"
@@ -39,7 +39,13 @@ public:
 
   // Description:
   // Draw a polyline between the specified points.
+  // \sa DrawLines()
   void DrawPoly(const float *verts, int n, const unsigned char *colors, int nc);
+
+  // Description:
+  // Draw lines defined by specified pair of points.
+  // \sa DrawPoly()
+  void DrawLines(const float *verts, int n, const unsigned char *colors, int nc);
 
   // Description:
   // Draw points at the vertex positions specified.

@@ -5,9 +5,10 @@ vtk_module(vtkRenderingVolume
     vtkImagingCore
     vtkRenderingCore
   TEST_DEPENDS
+    vtkFiltersModeling
     vtkTestingCore
     vtkTestingRendering
-    vtkRenderingVolumeOpenGL
+    vtkRenderingVolume${VTK_RENDERING_BACKEND}
     vtkRenderingFreeType
     vtkIOXML
     vtkImagingSources

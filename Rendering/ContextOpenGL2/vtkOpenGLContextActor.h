@@ -18,8 +18,8 @@
 // in a vtkRenderer. Uses the RenderOverlay pass to render the 2D
 // vtkContextScene.
 
-#ifndef __vtkOpenGLContextActor_h
-#define __vtkOpenGLContextActor_h
+#ifndef vtkOpenGLContextActor_h
+#define vtkOpenGLContextActor_h
 
 #include "vtkRenderingContextOpenGL2Module.h" // For export macro
 #include "vtkContextActor.h"
@@ -37,6 +37,10 @@ public:
   // The parameter window could be used to determine which graphic
   // resources to release.
   virtual void ReleaseGraphicsResources(vtkWindow *window);
+
+  // Description:
+  // We only render in the overlay for the context scene.
+  virtual int RenderOverlay(vtkViewport *viewport);
 
 protected:
   vtkOpenGLContextActor();

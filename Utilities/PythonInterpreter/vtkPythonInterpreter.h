@@ -46,8 +46,8 @@
 // after Finalize especially when concerning with imported modules. Refer to
 // Python docs for details. In short, modules like numpy don't continue to work
 // after a re-initialize. Hence use it with caution.
-#ifndef __vtkPythonInterpreter_h
-#define __vtkPythonInterpreter_h
+#ifndef vtkPythonInterpreter_h
+#define vtkPythonInterpreter_h
 
 #include "vtkObject.h"
 #include "vtkPythonInterpreterModule.h" // For export macro
@@ -94,7 +94,8 @@ public:
   // is provided to overcome an issue with the Python interpreter with handling
   // of DOS line endings.
   // This will initialize Python if not already initialized.
-  static void RunSimpleString(const char* script);
+  // Returns 0 on success or -1 if a python exception was raised.
+  static int RunSimpleString(const char* script);
 
   // Description:
   // Prepends the path to the sys.path variable. If Python has been
@@ -133,6 +134,14 @@ private:
 
   static bool InitializedOnce;
   static bool CaptureStdin;
+  // Description:
+  // If true, buffer output to console and sent it to other modules at
+  // the end of the operation. If false, send the output as it becomes available.
+  static bool ConsoleBuffering;
+  // Description:
+  // Accumulate here output printed to console by the python interpreter.
+  static std::string StdErrBuffer;
+  static std::string StdOutBuffer;
 //ETX
 };
 

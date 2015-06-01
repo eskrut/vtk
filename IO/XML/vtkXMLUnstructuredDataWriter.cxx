@@ -151,6 +151,15 @@ int vtkXMLUnstructuredDataWriter::ProcessRequest(vtkInformation* request,
         this->NumberOfPieces = numPieces;
         return 0;
         }
+
+      if (this->GetInputAsDataSet() != NULL &&
+          (this->GetInputAsDataSet()->GetPointGhostArray() != NULL &&
+           this->GetInputAsDataSet()->GetCellGhostArray() != NULL))
+        {
+        // use the current version for the file.
+        this->UsePreviousVersion = false;
+        }
+
       // Write the file.
       if (!this->StartFile())
         {
@@ -241,6 +250,7 @@ void vtkXMLUnstructuredDataWriter::AllocatePositionArrays()
 void vtkXMLUnstructuredDataWriter::DeletePositionArrays()
 {
   delete [] this->NumberOfPointsPositions;
+  this->NumberOfPointsPositions = 0;
 }
 
 //----------------------------------------------------------------------------

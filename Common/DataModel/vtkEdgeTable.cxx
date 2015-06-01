@@ -540,10 +540,7 @@ vtkIdList **vtkEdgeTable::Resize(vtkIdType sz)
       {
       newPointerAttributeArray[i] = NULL;
       }
-    if ( this->PointerAttributes )
-      {
-      delete [] this->PointerAttributes;
-      }
+    delete [] this->PointerAttributes;
     this->PointerAttributes = newPointerAttributeArray;
     }
 
@@ -580,7 +577,7 @@ int vtkEdgeTable::InitPointInsertion(vtkPoints *newPts, vtkIdType estSize)
 int vtkEdgeTable::InsertUniquePoint(vtkIdType p1, vtkIdType p2, double x[3],
                                     vtkIdType &ptId)
 {
-  int loc = this->IsEdge(p1,p2);
+  vtkIdType loc = this->IsEdge(p1,p2);
 
   if ( loc != -1 )
     {

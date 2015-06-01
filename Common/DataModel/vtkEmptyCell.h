@@ -17,8 +17,8 @@
 // vtkEmptyCell is a concrete implementation of vtkCell. It is used
 // during processing to represented a deleted element.
 
-#ifndef __vtkEmptyCell_h
-#define __vtkEmptyCell_h
+#ifndef vtkEmptyCell_h
+#define vtkEmptyCell_h
 
 #include "vtkCommonDataModelModule.h" // For export macro
 #include "vtkCell.h"
@@ -60,12 +60,6 @@ public:
   int Triangulate(int index, vtkIdList *ptIds, vtkPoints *pts);
   void Derivatives(int subId, double pcoords[3], double *values,
                    int dim, double *derivs);
-
-  // Description:
-  // Compute the interpolation functions/derivatives
-  // (aka shape functions/derivatives)
-  virtual void InterpolateFunctions(double pcoords[3], double *weights);
-  virtual void InterpolateDerivs(double pcoords[3], double *derivs);
 
 protected:
   vtkEmptyCell() {}

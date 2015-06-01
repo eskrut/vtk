@@ -26,8 +26,8 @@
 // .SECTION Thanks
 // Developed by Timothy M. Shead (tshead@sandia.gov) at Sandia National Laboratories.
 
-#ifndef __vtkUnicodeStringArray_h
-#define __vtkUnicodeStringArray_h
+#ifndef vtkUnicodeStringArray_h
+#define vtkUnicodeStringArray_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkAbstractArray.h"
@@ -51,6 +51,8 @@ public:
   virtual void InsertTuple(vtkIdType i, vtkIdType j, vtkAbstractArray* source);
   virtual void InsertTuples(vtkIdList *dstIds, vtkIdList *srcIds,
                             vtkAbstractArray *source);
+  virtual void InsertTuples(vtkIdType dstStart, vtkIdType n, vtkIdType srcStart,
+                            vtkAbstractArray* source);
   virtual vtkIdType InsertNextTuple(vtkIdType j, vtkAbstractArray* source);
   virtual void* GetVoidPointer(vtkIdType id);
   virtual void DeepCopy(vtkAbstractArray* da);
@@ -62,7 +64,7 @@ public:
   virtual void Squeeze();
   virtual int Resize(vtkIdType numTuples);
   virtual void SetVoidArray(void *array, vtkIdType size, int save);
-  virtual unsigned long GetActualMemorySize();
+  virtual unsigned long GetActualMemorySize(); // in bytes
   virtual int IsNumeric();
   virtual vtkArrayIterator* NewIterator();
   virtual vtkVariant GetVariantValue(vtkIdType idx);

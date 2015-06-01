@@ -17,8 +17,8 @@
 // that (shallow) copies itself downstream during the REQUEST_INFORMATION pass. Hence
 // it can be used to provide meta-data of type vtkDataObject or any subclass.
 
-#ifndef __vtkInformationDataObjectMetaDataKey_h
-#define __vtkInformationDataObjectMetaDataKey_h
+#ifndef vtkInformationDataObjectMetaDataKey_h
+#define vtkInformationDataObjectMetaDataKey_h
 
 #include "vtkCommonExecutionModelModule.h" // For export macro
 #include "vtkInformationDataObjectKey.h"
@@ -33,6 +33,15 @@ public:
 
   vtkInformationDataObjectMetaDataKey(const char* name, const char* location);
   ~vtkInformationDataObjectMetaDataKey();
+
+  // Description:
+  // This method simply returns a new vtkInformationDataObjectMetaDataKey, given a
+  // name and a location. This method is provided for wrappers. Use the
+  // constructor directly from C++ instead.
+  static vtkInformationDataObjectMetaDataKey* MakeKey(const char* name, const char* location)
+    {
+    return new vtkInformationDataObjectMetaDataKey(name, location);
+    }
 
   // Description:
   // Simply shallow copies the key from fromInfo to toInfo if request

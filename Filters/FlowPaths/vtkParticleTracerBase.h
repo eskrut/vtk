@@ -22,8 +22,8 @@
 // vtkRibbonFilter vtkRuledSurfaceFilter vtkInitialValueProblemSolver
 // vtkRungeKutta2 vtkRungeKutta4 vtkRungeKutta45 vtkStreamTracer
 
-#ifndef __vtkParticleTracerBase_h
-#define __vtkParticleTracerBase_h
+#ifndef vtkParticleTracerBase_h
+#define vtkParticleTracerBase_h
 
 #include "vtkFiltersFlowPathsModule.h" // For export macro
 #include "vtkSmartPointer.h" // For protected ivars.
@@ -68,6 +68,7 @@ namespace vtkParticleTracerBaseNamespace
     int           InjectedPointId;
     int           InjectedStepId;
     int           UniqueParticleId;
+    double        SimulationTime;
     // These are useful to track for debugging etc
     int           ErrorCode;
     float         age;
@@ -76,8 +77,12 @@ namespace vtkParticleTracerBaseNamespace
     float         angularVel;
     float         time;
     float         speed;
-
-    vtkIdType     PointId; //once the partice is added, PointId is valid
+    // once the partice is added, PointId is valid and is the tuple location
+    // in ProtoPD.
+    vtkIdType     PointId;
+    // if PointId is negative then in parallel this particle was just
+    // received and we need to get the tuple value from vtkPParticleTracerBase::Tail.
+    vtkIdType     TailPointId;
   } ParticleInformation;
 
   typedef std::vector<ParticleInformation>  ParticleVector;
@@ -219,13 +224,14 @@ public:
 
  protected:
   vtkSmartPointer<vtkPolyData> Output; //managed by child classes
+  // Description:
+  // ProtoPD is used just to keep track of the input array names and number of components
+  // for copy allocating from other vtkPointDatas where the data is really stored
   vtkSmartPointer<vtkPointData> ProtoPD;
   vtkIdType UniqueIdCounter;// global Id counter used to give particles a stamp
   vtkParticleTracerBaseNamespace::ParticleDataList  ParticleHistories;
   vtkSmartPointer<vtkPointData>     ParticlePointData; //the current particle point data consistent
                                                        //with particle history
-  int           ReinjectionCounter;
-
   //Everything related to time
   int IgnorePipelineTime; //whether to use the pipeline time for termination
   int DisableResetCache; //whether to enable ResetCache() method
@@ -327,8 +333,9 @@ public:
 
   // Description : Perform a GatherV operation on a vector of particles
   // this is used during classification of seed points and also between iterations
-  // of the main loop as particles leave each processor domain
-  virtual void UpdateParticleListFromOtherProcesses(){}
+  // of the main loop as particles leave each processor domain. Returns true
+  // if particles moved between processes and false otherwise.
+  virtual bool UpdateParticleListFromOtherProcesses(){return false;}
 
   // Description : The main loop performing Runge-Kutta integration of a single
   // particle between the two times supplied.
@@ -370,11 +377,8 @@ public:
   vtkFloatArray*    GetParticleRotation(vtkPointData*);
   vtkFloatArray*    GetParticleAngularVel(vtkPointData*);
 
-
   // utility function we use to test if a point is inside any of our local datasets
   bool InsideBounds(double point[]);
-
-
 
   void CalculateVorticity( vtkGenericCell* cell, double pcoords[3],
                            vtkDoubleArray* cellVectors, double vorticity[3] );
@@ -396,6 +400,17 @@ public:
   bool IsPointDataValid(vtkCompositeDataSet* input, std::vector<std::string>& arrayNames);
   void GetPointDataArrayNames(vtkDataSet* input, std::vector<std::string>& names);
 
+  vtkGetMacro(ReinjectionCounter, int);
+  vtkGetMacro(CurrentTimeValue, double);
+
+  // Description:
+  // Methods to append values to existing point data arrays that may
+  // only be desired on specific concrete derived classes.
+  virtual void InitializeExtraPointDataArrays(vtkPointData* vtkNotUsed(outputPD)) {}
+
+  virtual void AppendToExtraPointDataArrays(vtkParticleTracerBaseNamespace::ParticleInformation &) {}
+
+  vtkTemporalInterpolatedVelocityField* GetInterpolator();
 private:
   // Description:
   // Hide this because we require a new interpolator type
@@ -407,7 +422,7 @@ private:
   // These routines manage the collection and sending after each main iteration.
   // RetryWithPush adds a small push to a particle along it's current velocity
   // vector, this helps get over cracks in dynamic/rotating meshes. This is a
-  // firsr order integration though so it may introduce a bit extra error compared
+  // first order integration though so it may introduce a bit extra error compared
   // to the integrator that is used.
   bool RetryWithPush(
     vtkParticleTracerBaseNamespace::ParticleInformation &info, double* point1,double delT, int subSteps);
@@ -422,6 +437,9 @@ private:
   double RotationScale;
   double TerminalSpeed;
 
+  // A counter to keep track of how many times we reinjected
+  int ReinjectionCounter;
+
   // Important for Caching of Cells/Ids/Weights etc
   int           AllFixedGeometry;
   int           StaticMesh;
@@ -430,7 +448,7 @@ private:
   std::vector<double>  InputTimeValues;
   double StartTime;
   double TerminationTime;
-  double CurrentTime;
+  double CurrentTimeValue;
 
   int  StartTimeStep; //InputTimeValues[StartTimeStep] <= StartTime <= InputTimeValues[StartTimeStep+1]
   int  CurrentTimeStep;
@@ -450,7 +468,6 @@ private:
 
   // The main lists which are held during operation- between time step updates
   vtkParticleTracerBaseNamespace::ParticleVector    LocalSeeds;
-
 
   // The velocity interpolator
   vtkSmartPointer<vtkTemporalInterpolatedVelocityField>  Interpolator;

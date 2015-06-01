@@ -17,8 +17,8 @@
 // vtkPoints2D represents 2D points. The data model for vtkPoints2D is an
 // array of vx-vy doublets accessible by (point or cell) id.
 
-#ifndef __vtkPoints2D_h
-#define __vtkPoints2D_h
+#ifndef vtkPoints2D_h
+#define vtkPoints2D_h
 
 #include "vtkCommonCoreModule.h" // For export macro
 #include "vtkObject.h"
@@ -97,7 +97,7 @@ public:
   virtual void ShallowCopy(vtkPoints2D *ad);
 
   // Description:
-  // Return the memory in kilobytes consumed by this attribute data.
+  // Return the memory in kibibytes (1024 bytes) consumed by this attribute data.
   // Used to support streaming and reading/writing data. The value
   // returned is guaranteed to be greater than or equal to the
   // memory required to actually represent the data represented

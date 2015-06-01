@@ -23,8 +23,8 @@
 // vtkPolyDataReader vtkStructuredPointsReader vtkStructuredGridReader
 // vtkUnstructuredGridReader vtkRectilinearGridReader
 
-#ifndef __vtkDataReader_h
-#define __vtkDataReader_h
+#ifndef vtkDataReader_h
+#define vtkDataReader_h
 
 #include "vtkIOLegacyModule.h" // For export macro
 #include "vtkAlgorithm.h"
@@ -46,6 +46,15 @@ class vtkTable;
 class VTKIOLEGACY_EXPORT vtkDataReader : public vtkAlgorithm
 {
 public:
+  enum FieldType
+  {
+    POINT_DATA,
+    CELL_DATA,
+    FIELD_DATA,
+  };
+
+
+
   static vtkDataReader *New();
   vtkTypeMacro(vtkDataReader,vtkAlgorithm);
   void PrintSelf(ostream& os, vtkIndent indent);
@@ -283,7 +292,13 @@ public:
   // Description:
   // Helper functions for reading data.
   vtkAbstractArray *ReadArray(const char *dataType, int numTuples, int numComp);
-  vtkFieldData *ReadFieldData();
+  vtkFieldData *ReadFieldData(FieldType fieldType = FIELD_DATA);
+
+  // Description:
+  // Return major and minor version of the file.
+  // Returns version 3.0 if the version cannot be read from file.
+  vtkGetMacro(FileMajorVersion, int);
+  vtkGetMacro(FileMinorVersion, int);
 
 //BTX
   // Description:
@@ -374,6 +389,7 @@ protected:
   int ReadTCoordsData(vtkDataSetAttributes *a, int num);
   int ReadGlobalIds(vtkDataSetAttributes *a, int num);
   int ReadPedigreeIds(vtkDataSetAttributes *a, int num);
+  int ReadEdgeFlags(vtkDataSetAttributes *a, int num);
 
   int ReadDataSetData(vtkDataSet *ds);
 
@@ -405,6 +421,8 @@ protected:
   int ReadAllColorScalars;
   int ReadAllTCoords;
   int ReadAllFields;
+  int FileMajorVersion;
+  int FileMinorVersion;
 
   void InitializeCharacteristics();
   int CharacterizeFile(); //read entire file, storing important characteristics
@@ -434,6 +452,9 @@ protected:
 private:
   vtkDataReader(const vtkDataReader&);  // Not implemented.
   void operator=(const vtkDataReader&);  // Not implemented.
+
+  void ConvertGhostLevelsToGhostType(
+    FieldType fieldType, vtkAbstractArray *data) const;
 };
 
 #endif

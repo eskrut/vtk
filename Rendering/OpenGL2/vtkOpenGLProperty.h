@@ -17,8 +17,8 @@
 // vtkOpenGLProperty is a concrete implementation of the abstract class
 // vtkProperty. vtkOpenGLProperty interfaces to the OpenGL rendering library.
 
-#ifndef __vtkOpenGLProperty_h
-#define __vtkOpenGLProperty_h
+#ifndef vtkOpenGLProperty_h
+#define vtkOpenGLProperty_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkProperty.h"
@@ -38,7 +38,6 @@ public:
   // Implement base class method.
   void BackfaceRender(vtkActor *a, vtkRenderer *ren);
 
-  //BTX
   // Description:
   // This method is called after the actor has been rendered.
   // Don't call this directly. This method cleans up

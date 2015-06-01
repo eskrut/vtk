@@ -19,8 +19,10 @@
 #include "vtkParse.h"
 #include "vtkParseMain.h"
 #include "vtkParseHierarchy.h"
+#include "vtkWrap.h"
 
 HierarchyInfo *hierarchyInfo = NULL;
+StringCache *stringCache = NULL;
 int numberOfWrappedFunctions = 0;
 FunctionInfo *wrappedFunctions[1000];
 extern FunctionInfo *currentFunction;
@@ -65,7 +67,7 @@ void output_temp(FILE *fp,int i)
       case VTK_PARSE_VOID:        fprintf(fp,"void "); break;
       case VTK_PARSE_CHAR:        fprintf(fp,"char "); break;
       case VTK_PARSE_OBJECT:  fprintf(fp,"%s ",currentFunction->ArgClasses[i]); break;
-      case VTK_PARSE_UNKNOWN: return;
+      case VTK_PARSE_UNKNOWN:     fprintf(fp,"int "); break;
       }
     }
 
@@ -111,6 +113,7 @@ void return_result(FILE *fp)
     case VTK_PARSE_UNSIGNED_ID_TYPE:
     case VTK_PARSE_UNSIGNED_LONG_LONG:
     case VTK_PARSE_UNSIGNED___INT64:
+    case VTK_PARSE_UNKNOWN:
       fprintf(fp,"int ");
       break;
     case VTK_PARSE_BOOL:
@@ -189,6 +192,7 @@ void return_result_native(FILE *fp)
     case VTK_PARSE_UNSIGNED_ID_TYPE:
     case VTK_PARSE_UNSIGNED_LONG_LONG:
     case VTK_PARSE_UNSIGNED___INT64:
+    case VTK_PARSE_UNKNOWN:
       fprintf(fp,"int ");
       break;
     case VTK_PARSE_BOOL:
@@ -467,7 +471,7 @@ int checkFunctionSignature(ClassInfo *data)
     VTK_PARSE_ID_TYPE, VTK_PARSE_UNSIGNED_ID_TYPE,
     VTK_PARSE_LONG_LONG, VTK_PARSE_UNSIGNED_LONG_LONG,
     VTK_PARSE___INT64, VTK_PARSE_UNSIGNED___INT64,
-    VTK_PARSE_OBJECT, VTK_PARSE_STRING,
+    VTK_PARSE_OBJECT, VTK_PARSE_STRING, VTK_PARSE_UNKNOWN,
     0
   };
 
@@ -533,6 +537,25 @@ int checkFunctionSignature(ClassInfo *data)
       args_ok = 0;
       }
 
+    if (baseType == VTK_PARSE_UNKNOWN)
+      {
+      const char *qualified_name = 0;
+      if ((aType & VTK_PARSE_INDIRECT) == 0)
+        {
+        qualified_name = vtkParseHierarchy_QualifiedEnumName(
+          hierarchyInfo, data, stringCache,
+          currentFunction->ArgClasses[i]);
+        }
+      if (qualified_name)
+        {
+        currentFunction->ArgClasses[i] = qualified_name;
+        }
+      else
+        {
+        args_ok = 0;
+        }
+      }
+
     if (baseType == VTK_PARSE_OBJECT)
       {
       if ((aType & VTK_PARSE_INDIRECT) != VTK_PARSE_POINTER)
@@ -568,6 +591,25 @@ int checkFunctionSignature(ClassInfo *data)
   if (supported_types[j] == 0)
     {
     args_ok = 0;
+    }
+
+  if (baseType == VTK_PARSE_UNKNOWN)
+    {
+    const char *qualified_name = 0;
+    if ((rType & VTK_PARSE_INDIRECT) == 0)
+      {
+      qualified_name = vtkParseHierarchy_QualifiedEnumName(
+        hierarchyInfo, data, stringCache,
+        currentFunction->ReturnClass);
+      }
+    if (qualified_name)
+      {
+      currentFunction->ReturnClass = qualified_name;
+      }
+    else
+      {
+      args_ok = 0;
+      }
     }
 
   if (baseType == VTK_PARSE_OBJECT)
@@ -794,6 +836,9 @@ int main(int argc, char *argv[])
   /* get command-line args and parse the header file */
   file_info = vtkParse_Main(argc, argv);
 
+  /* some utility functions require the string cache */
+  stringCache = file_info->Strings;
+
   /* get the command-line options */
   options = vtkParse_GetCommandLineOptions();
 
@@ -817,6 +862,11 @@ int main(int argc, char *argv[])
   if (options->HierarchyFileName)
     {
     hierarchyInfo = vtkParseHierarchy_ReadFile(options->HierarchyFileName);
+    if (hierarchyInfo)
+      {
+      /* resolve using declarations within the header files */
+      vtkWrap_ApplyUsingDeclarations(data, file_info, hierarchyInfo);
+      }
     }
 
   fprintf(fp,"// java wrapper for %s object\n//\n",data->Name);

@@ -171,7 +171,7 @@ double vtkBox::EvaluateFunction(double x[3])
     else
       {
       dist = fabs(x[i]-minP[i]);
-      if (dist)
+      if ( dist > 0.0 )
         {
         inside = 0;
         }
@@ -398,7 +398,7 @@ char vtkBox::IntersectBox (double bounds[6], double origin[3], double dir[3],
       }
     }
 
-    return 1;
+  return 1;
 }
 #undef VTK_RIGHT
 #undef VTK_LEFT

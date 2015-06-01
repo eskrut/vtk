@@ -1095,12 +1095,12 @@ int vtkChacoReader::InputGraph2(
   int end_flag = 1;
   while (end_flag == 1)
     {
-    j = this->ReadInt(fin, &end_flag);
+    this->ReadInt(fin, &end_flag);
     ++line_num;
     }
   while (!end_flag)
     {
-    j = this->ReadInt(fin, &end_flag);
+    this->ReadInt(fin, &end_flag);
     }
   ++line_num;
 
@@ -1248,21 +1248,15 @@ done:
     /* Graph was empty */
     delete [] *start;
     *start = NULL;
-    if (adjacency && (*adjacency != NULL))
-      {
-      delete [] *adjacency;
-      *adjacency = NULL;
-      }
-    if (vweights && (*vweights != NULL))
-      {
-      delete [] *vweights;
-      *vweights = NULL;
-      }
-    if (eweights && (*eweights != NULL))
-      {
-      delete [] *eweights;
-      *eweights = NULL;
-      }
+
+    delete [] *adjacency;
+    *adjacency = NULL;
+
+    delete [] *vweights;
+    *vweights = NULL;
+
+    delete [] *eweights;
+    *eweights = NULL;
     }
 
   return retVal;

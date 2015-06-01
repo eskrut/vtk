@@ -69,7 +69,8 @@ def apply_dfunc(dfunc, array1, val2):
             if a1 is dsa.NoneArray or a2 is dsa.NoneArray:
                 res.append(dsa.NoneArray)
             else:
-                res.append(dfunc(a1, a2))
+                l = dsa.reshape_append_ones(a1, a2)
+                res.append(dfunc(l[0], l[1]))
         return dsa.VTKCompositeDataArray(res, dataset = array1.DataSet)
     elif type(array1) == dsa.VTKCompositeDataArray:
         res = []
@@ -77,12 +78,14 @@ def apply_dfunc(dfunc, array1, val2):
             if a is dsa.NoneArray:
                 res.append(dsa.NoneArray)
             else:
-                res.append(dfunc(a, val2))
+                l = dsa.reshape_append_ones(a, val2)
+                res.append(dfunc(l[0], l[1]))
         return dsa.VTKCompositeDataArray(res, dataset = array1.DataSet)
     elif array1 is dsa.NoneArray:
         return dsa.NoneArray
     else:
-        return dfunc(array1, val2)
+        l = dsa.reshape_append_ones(array1, val2)
+        return dfunc(l[0], l[1])
 
 def _make_dfunc(dfunc):
     """ Given a function that requires two arguments, creates a closure that
@@ -245,7 +248,7 @@ def max(array, axis=None, controller=None):
     """Returns the max of all values along a particular axis (dimension).
     Given an array of m tuples and n components:
     * Default is to return the max of all values in an array.
-    * axis=0: Return the max values of all components and return a
+    * axis=0: Return the max values of all tuples and return a
       one tuple, n-component array.
     * axis=1: Return the max values of all components of each tuple
       and return an m-tuple, 1-component array.
@@ -284,7 +287,7 @@ def min(array, axis=None, controller=None):
     """Returns the min of all values along a particular axis (dimension).
     Given an array of m tuples and n components:
     * Default is to return the min of all values in an array.
-    * axis=0: Return the min values of all components and return a one
+    * axis=0: Return the min values of all tuples and return a one
       tuple, n-component array.
     * axis=1: Return the min values of all components of each tuple and
       return an m-tuple, 1-component array.
@@ -909,6 +912,15 @@ def unstructured_from_composite_arrays(points, arrays, controller=None):
 sqrt = _make_ufunc(numpy.sqrt)
 sqrt.__doc__ = "Computes square root."
 
+negative = _make_ufunc(numpy.negative)
+negative.__doc__ = "Numerical negative, element-wise."
+
+reciprocal = _make_ufunc(numpy.reciprocal)
+reciprocal.__doc__ = "Return the reciprocal (1/x) of the argument, element-wise."
+
+square = _make_ufunc(numpy.square)
+square.__doc__ = "Return the element-wise square of the input."
+
 exp = _make_ufunc(numpy.exp)
 exp.__doc__ = "The exponential function."
 
@@ -918,8 +930,8 @@ floor.__doc__ = "Returns the floor of floating point values."
 ceil = _make_ufunc(numpy.ceil)
 ceil.__doc__ = "Returns the ceiling of floating point values."
 
-round = _make_ufunc(numpy.round)
-round.__doc__ = "Rounds floating points values to integers."
+rint = _make_ufunc(numpy.rint)
+rint.__doc__ = "Round elements of the array to the nearest integer."
 
 sin = _make_ufunc(numpy.sin)
 sin.__doc__ = "Computes sine of values in radians."
@@ -991,7 +1003,7 @@ expand_dims = _make_dfunc(numpy.expand_dims)
 expand_dims.__doc__ = """Insert a new dimension, corresponding to a given
 position in the array shape. In VTK, this function's main use is to
 enable an operator to work on a vector and a scalar field. For example,
-say you want to devide each component of a vector by the magnitude of
+say you want to divide each component of a vector by the magnitude of
 that vector. You might try this:
 
 >>> v
@@ -1121,4 +1133,28 @@ vertex_normal = _make_dsfunc2(algs.vertex_normal)
 vertex_normal.__doc__ = "Returns the normal at each vertex of a dataset, which is defined as the average of the cell normals of all cells containing that vertex."
 
 logical_not = _make_ufunc(numpy.logical_not)
-logical_not.__doc__ = "Computes the truth value of NOT x element-wise"
+logical_not.__doc__ = "Computes the truth value of NOT x element-wise."
+
+divide = _make_dfunc(numpy.divide)
+divide.__doc__ = "Element by element division. Both elements can be single values or arrays. Same as /."
+
+multiply = _make_dfunc(numpy.multiply)
+multiply.__doc__ = "Element by element multiplication. Both elements can be single values or arrays. Same as *."
+
+add = _make_dfunc(numpy.add)
+add.__doc__ = "Element by element addition. Both elements can be single values or arrays. Same as +."
+
+subtract = _make_dfunc(numpy.subtract)
+subtract.__doc__ = "Returns the difference of two values element-wise. Same as x - y."
+
+mod = _make_dfunc(numpy.mod)
+mod.__doc__ = "Computes x1 - floor(x1 / x2) * x2, the result has the same sign as the divisor x2. It is equivalent to the Python modulus operator x1 % x2. Same as remainder."
+
+remainder = _make_dfunc(numpy.remainder)
+remainder.__doc__ = "Computes x1 - floor(x1 / x2) * x2, the result has the same sign as the divisor x2. It is equivalent to the Python modulus operator x1 % x2. Same as mod."
+
+power = _make_dfunc(numpy.power)
+power.__doc__ = "First array elements raised to powers from second array, element-wise."
+
+hypot = _make_dfunc(numpy.hypot)
+hypot.__doc__ = "Given the 'legs' of a right triangle, return its hypotenuse."

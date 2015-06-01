@@ -38,8 +38,8 @@
 // .SECTION TODO
 // Need to clean up style to match vtk/Kitware standards. Please help.
 
-#ifndef __vtkTInterpolatedVelocityField_h
-#define __vtkTInterpolatedVelocityField_h
+#ifndef vtkTInterpolatedVelocityField_h
+#define vtkTInterpolatedVelocityField_h
 
 #include "vtkFiltersFlowPathsModule.h" // For export macro
 #include "vtkFunctionSet.h"
@@ -90,12 +90,14 @@ public:
     {this->SetVectorsSelection(fieldName);}
 
   // Description:
-  // Return the cell id cached from last evaluation.
+  // Set LastCellId to c and LastCacheIndex datasetindex, cached from last evaluation.
+  // If c isn't -1 then the corresponding cell is stored in Cache->Cell.
+  // These values should be valid or an assertion will be triggered.
   void SetLastCellInfo(vtkIdType c, int datasetindex);
 
   // Description:
-  // Set the last cell id to -1 so that the next search does not
-  // start from the previous cell
+  // Set LastCellId to -1 and Cache to NULL so that the next
+  // search does not  start from the previous cell.
   void ClearLastCellInfo();
 
   // Description:

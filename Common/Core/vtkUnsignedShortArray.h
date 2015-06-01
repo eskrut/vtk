@@ -17,12 +17,16 @@
 // vtkUnsignedShortArray is an array of values of type unsigned short.
 // It provides methods for insertion and retrieval of values and will
 // automatically resize itself to hold new data.
+//
+// The C++ standard does not define the exact size of the unsigned short type,
+// so use of this type directly is discouraged.  If an array of 16 bit
+// unsigned integers is needed, prefer vtkTypeUInt16Array to this class.
 
-#ifndef __vtkUnsignedShortArray_h
-#define __vtkUnsignedShortArray_h
+#ifndef vtkUnsignedShortArray_h
+#define vtkUnsignedShortArray_h
 
 // Tell the template header how to give our superclass a DLL interface.
-#if !defined(__vtkUnsignedShortArray_cxx)
+#if !defined(vtkUnsignedShortArray_cxx)
 # define VTK_DATA_ARRAY_TEMPLATE_TYPE unsigned short
 #endif
 

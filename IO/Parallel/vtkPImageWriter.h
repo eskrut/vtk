@@ -20,8 +20,8 @@
 // This class is used as the superclass of most image writing classes
 // such as vtkBMPWriter etc. It supports streaming.
 
-#ifndef __vtkPImageWriter_h
-#define __vtkPImageWriter_h
+#ifndef vtkPImageWriter_h
+#define vtkPImageWriter_h
 
 #include "vtkIOParallelModule.h" // For export macro
 #include "vtkImageWriter.h"
@@ -35,7 +35,7 @@ public:
   void PrintSelf(ostream& os, vtkIndent indent);
 
   // Description:
-  // Set / Get the memory limit in kilobytes. The writer will
+  // Set / Get the memory limit in kibibytes (1024 bytes). The writer will
   // stream to attempt to keep the pipeline size within this limit
   vtkSetMacro(MemoryLimit, unsigned long);
   vtkGetMacro(MemoryLimit, unsigned long);
