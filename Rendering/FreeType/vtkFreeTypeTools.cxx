@@ -2345,7 +2345,7 @@ FT_Bitmap *vtkFreeTypeTools::GetBitmap(FT_UInt32 c, FTC_Scaler scaler,
                                        FT_BitmapGlyph &bitmap_glyph)
 {
   // Get the glyph index
-  if (!this->GetGlyphIndex(reinterpret_cast<unsigned long>(scaler->face_id), c,
+  if (!this->GetGlyphIndex(reinterpret_cast<intptr_t>(scaler->face_id), c,
                            &gindex))
     {
     return 0;
@@ -2407,7 +2407,7 @@ FT_Outline *vtkFreeTypeTools::GetOutline(FT_UInt32 c, FTC_Scaler scaler,
                                          FT_OutlineGlyph &outline_glyph)
 {
   // Get the glyph index
-  if (!this->GetGlyphIndex(reinterpret_cast<unsigned long>(scaler->face_id), c,
+  if (!this->GetGlyphIndex(reinterpret_cast<intptr_t>(scaler->face_id), c,
                            &gindex))
     {
     return 0;
